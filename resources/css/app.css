@@ -1,0 +1,114 @@
+@import "tailwindcss";
+@import "@fontsource/oswald/500.css";
+@import "@fontsource/oswald/600.css";
+@import "@fontsource/oswald/700.css";
+@import "@fontsource/inter/400.css";
+@import "@fontsource/inter/500.css";
+@import "@fontsource/inter/600.css";
+@import "@fontsource/inter/700.css";
+@import "@fortawesome/fontawesome-free/css/all.min.css";
+
+@theme {
+  --color-brand: #dc2626;
+  --color-dark: #09090b;
+  --color-surface: #171717;
+  --color-border: #27272a;
+  --color-muted: #a1a1aa;
+
+  --font-sans: "Inter", system-ui, sans-serif;
+  --font-display: "Oswald", "Arial Narrow", sans-serif;
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #09090b;
+}
+::-webkit-scrollbar-thumb {
+  background: #3f3f46;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #dc2626;
+}
+
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.hide-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+/* Glow Effect for Live elements — satu-satunya glow yang diizinkan */
+.live-glow {
+  box-shadow: 0 0 15px rgba(220, 38, 38, 0.5);
+}
+
+/* Isi berita (HTML dari editor) */
+.rich-body p {
+  margin: 0.75em 0;
+}
+.rich-body h2 {
+  font-size: 1.4rem;
+  font-weight: 700;
+  margin: 1em 0 0.5em;
+  color: #fff;
+}
+.rich-body h3 {
+  font-size: 1.15rem;
+  font-weight: 700;
+  margin: 1em 0 0.5em;
+  color: #fff;
+}
+.rich-body ul {
+  list-style: disc;
+  padding-left: 1.5em;
+  margin: 0.75em 0;
+}
+.rich-body ol {
+  list-style: decimal;
+  padding-left: 1.5em;
+  margin: 0.75em 0;
+}
+.rich-body blockquote {
+  border-left: 3px solid #dc2626;
+  padding-left: 1em;
+  color: #a1a1aa;
+  margin: 1em 0;
+}
+.rich-body strong {
+  font-weight: 700;
+  color: #fff;
+}
+
+/* Editor TipTap */
+.tiptap p {
+  margin: 0.5em 0;
+}
+.tiptap h2 {
+  font-size: 1.3rem;
+  font-weight: 700;
+  margin: 0.8em 0 0.4em;
+}
+.tiptap h3 {
+  font-size: 1.1rem;
+  font-weight: 700;
+  margin: 0.8em 0 0.4em;
+}
+.tiptap ul {
+  list-style: disc;
+  padding-left: 1.5em;
+}
+.tiptap ol {
+  list-style: decimal;
+  padding-left: 1.5em;
+}
+.tiptap blockquote {
+  border-left: 3px solid #dc2626;
+  padding-left: 1em;
+  color: #a1a1aa;
+}

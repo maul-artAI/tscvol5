@@ -18,7 +18,7 @@ import BracketDiagram, { expectedLabel, isPenaltyDecided, winnerOf, type Bracket
 import AdminLayout from "../../Layouts/AdminLayout";
 import { useFeedback } from "../../Components/Feedback";
 
-type InitialBracket = { rounds: BracketRound[]; champion: Team | null };
+type InitialBracket = { rounds: BracketRound[]; champion: Team | null; third: Team | null };
 
 const MONTHS_ID = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"];
 
@@ -115,6 +115,7 @@ export default function AdminBracketPage({ initialCategory, initialBracket, init
   const [cat, setCat] = useState<"SMA" | "SMP">(initialCategory ?? "SMA");
   const [rounds, setRounds] = useState<BracketRound[]>(initialBracket?.rounds ?? []);
   const [champion, setChampion] = useState<Team | null>(initialBracket?.champion ?? null);
+  const [third, setThird] = useState<Team | null>(initialBracket?.third ?? null);
   const [teams, setTeams] = useState<Team[]>(initialBracketTeams ?? []);
   const [saving, setSaving] = useState<number | null>(null);
   const [seeding, setSeeding] = useState(false);
@@ -146,12 +147,13 @@ export default function AdminBracketPage({ initialCategory, initialBracket, init
 
   async function load(c: string) {
     const [b, t, s] = await Promise.all([
-      apiFetch<{ data: { rounds: BracketRound[]; champion: Team | null } }>(`/bracket?category=${c}`),
+      apiFetch<{ data: { rounds: BracketRound[]; champion: Team | null; third: Team | null } }>(`/bracket?category=${c}`),
       apiFetch<{ data: Team[] }>(`/teams?category=${c}&active_only=0`),
       apiFetch<{ data: StandingRow[] }>(`/standings?category=${c}`),
     ]);
     setRounds(b.data.rounds);
     setChampion(b.data.champion);
+    setThird(b.data.third);
     setTeams(t.data);
     setGtable(s.data);
   }
@@ -416,6 +418,15 @@ export default function AdminBracketPage({ initialCategory, initialBracket, init
             <div className="text-[11px] font-bold text-muted uppercase">Juara {cat}</div>
             <div className="font-display italic font-bold">{champion.name}</div>
           </div>
+          {third && (
+            <div className="ml-auto flex items-center gap-2 text-right">
+              <div>
+                <div className="text-[11px] font-bold text-muted uppercase">Juara 3</div>
+                <div className="font-display italic font-bold">{third.name}</div>
+              </div>
+              <span className="text-xl">🥉</span>
+            </div>
+          )}
         </div>
       )}
 
@@ -429,6 +440,7 @@ export default function AdminBracketPage({ initialCategory, initialBracket, init
           <BracketDiagram
             rounds={rounds}
             champion={champion}
+            third={third}
             renderTeamRow={(m, side, team) => (
               <SlotTarget
                 matchId={m.id}

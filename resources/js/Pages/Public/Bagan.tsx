@@ -6,7 +6,7 @@ import PublicLayout from "../../Layouts/PublicLayout";
 import Reveal from "../../Components/Reveal";
 
 type Brackets = Partial<
-  Record<"SMA" | "SMP", { rounds: BracketRound[]; champion: Team | null }>
+  Record<"SMA" | "SMP", { rounds: BracketRound[]; champion: Team | null; third: Team | null }>
 >;
 type Tables = Partial<Record<"SMA" | "SMP", Record<string, StandingRow[]>>>;
 
@@ -15,6 +15,7 @@ export default function BaganPage({ brackets }: { brackets: Brackets; tables?: T
 
   const rounds = brackets[cat]?.rounds || [];
   const champion = brackets[cat]?.champion || null;
+  const third = brackets[cat]?.third || null;
 
   return (
     <PublicLayout>
@@ -52,7 +53,7 @@ export default function BaganPage({ brackets }: { brackets: Brackets; tables?: T
                 Bracket knockout {cat} belum disusun.
               </p>
             ) : (
-              <BracketDiagram rounds={rounds} champion={champion} />
+              <BracketDiagram rounds={rounds} champion={champion} third={third} />
             )}
           </>
         )}

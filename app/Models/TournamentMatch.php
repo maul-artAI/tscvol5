@@ -42,14 +42,18 @@ class TournamentMatch extends Model
         'slot',
         'winner_next_match_id',
         'winner_next_side',
+        'loser_next_match_id',
+        'loser_next_side',
     ];
 
     protected static function booted(): void
     {
-        // Saat laga selesai, pemenang otomatis mengisi slot laga lanjutan.
+        // Saat laga selesai: pemenang mengisi slot lanjutan, pecundang semifinal
+        // mengisi slot perebutan juara 3 (bila ditautkan).
         static::updated(function (TournamentMatch $match) {
             if ($match->wasChanged('status') && $match->status === 'finished') {
                 $match->advanceWinner();
+                $match->advanceLoser();
             }
         });
     }
@@ -104,6 +108,30 @@ class TournamentMatch extends Model
         }
 
         return $current;
+    }
+
+    /** Pecundang (bila ada tautan loser_next): untuk slot perebutan juara 3. */
+    public function advanceLoser(): void
+    {
+        $winnerId = $this->resolveWinnerId();
+        if (! $winnerId) {
+            return;
+        }
+        if (! $this->loser_next_match_id || ! $this->loser_next_side) {
+            return;
+        }
+        $loserId = $winnerId === $this->team1_id ? $this->team2_id : $this->team1_id;
+        if (! $loserId) {
+            return;
+        }
+        $next = static::find($this->loser_next_match_id);
+        if (! $next) {
+            return;
+        }
+        $column = $this->loser_next_side === 'team1' ? 'team1_id' : 'team2_id';
+        if (empty($next->{$column})) {
+            $next->update([$column => $loserId]);
+        }
     }
 
     public function winnerNextMatch(): BelongsTo

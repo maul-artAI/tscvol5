@@ -21,6 +21,8 @@ class BracketSeeder extends Seeder
                 ->exists();
 
             if ($exists) {
+                $this->ensurePlayoff($category);
+
                 continue;
             }
 
@@ -63,6 +65,9 @@ class BracketSeeder extends Seeder
             // Final
             $final = $make('F-1', 'Final', 4, 3, '15:00', 'Lapangan 1');
 
+            // Perebutan juara 3 (selalu dipastikan ada, walau skeleton lama).
+            $this->ensurePlayoff($category);
+
             // Tautan pemenang: ganjil -> slot team1, genap -> slot team2.
             $link = function (TournamentMatch $from, TournamentMatch $to) {
                 $num = (int) substr($from->slot, strrpos($from->slot, '-') + 1);
@@ -83,5 +88,36 @@ class BracketSeeder extends Seeder
             }
             // SF-1 (ganjil) -> team1, SF-2 (genap) -> team2 final.
         }
+    }
+
+    /**
+     * Pastikan slot perebutan juara 3 + tautan pecundang semifinal ada.
+     * Idempoten: aman dijalankan ulang dan pada skeleton lama.
+     */
+    private function ensurePlayoff(string $category): void
+    {
+        $po = TournamentMatch::where('category', $category)->where('slot', 'PO-1')->first();
+        if (! $po) {
+            $po = TournamentMatch::create([
+                'category' => $category,
+                'stage' => 'Perebutan Juara 3',
+                'round_label' => 'Perebutan Juara 3',
+                'round_order' => 4,
+                'slot' => 'PO-1',
+                'lapangan' => 'Lapangan 2',
+                'venue' => 'SMK Telkom Makassar',
+                'match_date' => Carbon::create(2026, 10, 5)->addDays(3)->toDateString(),
+                'kickoff' => '13:00',
+                'team1_id' => null,
+                'team2_id' => null,
+                'status' => 'scheduled',
+            ]);
+        }
+        TournamentMatch::where('category', $category)->where('slot', 'SF-1')
+            ->where(fn ($q) => $q->whereNull('loser_next_match_id')->orWhere('loser_next_side', '!=', 'team1'))
+            ->update(['loser_next_match_id' => $po->id, 'loser_next_side' => 'team1']);
+        TournamentMatch::where('category', $category)->where('slot', 'SF-2')
+            ->where(fn ($q) => $q->whereNull('loser_next_match_id')->orWhere('loser_next_side', '!=', 'team2'))
+            ->update(['loser_next_match_id' => $po->id, 'loser_next_side' => 'team2']);
     }
 }

@@ -231,6 +231,8 @@ class TournamentMatchController extends Controller
             'slot' => ['nullable', 'string', 'max:10'],
             'winner_next_match_id' => ['nullable', 'exists:matches,id'],
             'winner_next_side' => ['nullable', 'in:team1,team2'],
+            'loser_next_match_id' => ['nullable', 'exists:matches,id'],
+            'loser_next_side' => ['nullable', 'in:team1,team2'],
         ];
     }
 }

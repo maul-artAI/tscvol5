@@ -317,7 +317,13 @@ class AdminPageController extends Controller
             $champion = $final->team1_id === $final->resolveWinnerId() ? $final->team1 : $final->team2;
             $champion?->append('logo_url');
         }
+        $third = null;
+        $po = $matches->firstWhere('slot', 'PO-1');
+        if ($po && $po->status === 'finished' && $po->resolveWinnerId()) {
+            $third = $po->team1_id === $po->resolveWinnerId() ? $po->team1 : $po->team2;
+            $third?->append('logo_url');
+        }
 
-        return ['rounds' => $rounds, 'champion' => $champion];
+        return ['rounds' => $rounds, 'champion' => $champion, 'third' => $third];
     }
 }

@@ -121,11 +121,13 @@ export function isPenaltyDecided(m: BracketMatch): boolean {
 export default function BracketDiagram({
   rounds,
   champion,
+  third,
   renderTeamRow,
   renderCardFooter,
 }: {
   rounds: BracketRound[];
   champion: Team | null;
+  third?: Team | null;
   renderTeamRow?: (
     m: BracketMatch,
     side: "team1" | "team2",
@@ -291,7 +293,7 @@ export default function BracketDiagram({
             <h2 className="font-display italic font-bold text-lg uppercase mb-4 text-center shrink-0">
               <span className="text-brand">●</span> Juara
             </h2>
-            <div className="flex-1 flex flex-col justify-around">
+            <div className="flex-1 flex flex-col justify-around gap-4">
               <div
                 data-mid="champ"
                 className="relative z-10 bg-gradient-to-r from-brand/20 to-transparent border border-brand/40 rounded-xl p-4 flex items-center gap-3"
@@ -299,6 +301,15 @@ export default function BracketDiagram({
                 <i className="fa-solid fa-trophy text-brand text-2xl"></i>
                 <div className="font-display italic font-bold leading-tight">{champion.name}</div>
               </div>
+              {third && (
+                <div className="relative z-10 bg-surface border border-border rounded-xl p-4 flex items-center gap-3">
+                  <span className="text-xl">🥉</span>
+                  <div>
+                    <div className="text-[10px] font-bold text-muted uppercase">Juara 3</div>
+                    <div className="font-display italic font-bold leading-tight">{third.name}</div>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         )}

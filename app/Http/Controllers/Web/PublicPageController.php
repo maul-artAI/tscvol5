@@ -120,11 +120,16 @@ class PublicPageController extends Controller
 
             $final = $matches->sortByDesc('round_order')->first();
             $champion = null;
-            if ($final && $final->status === 'finished' && $final->team1_score !== $final->team2_score) {
-                $champion = $final->team1_score > $final->team2_score ? $final->team1 : $final->team2;
+            if ($final && $final->status === 'finished' && $final->resolveWinnerId()) {
+                $champion = $final->team1_id === $final->resolveWinnerId() ? $final->team1 : $final->team2;
+            }
+            $third = null;
+            $po = $matches->firstWhere('slot', 'PO-1');
+            if ($po && $po->status === 'finished' && $po->resolveWinnerId()) {
+                $third = $po->team1_id === $po->resolveWinnerId() ? $po->team1 : $po->team2;
             }
 
-            $brackets[$cat] = ['rounds' => $rounds, 'champion' => $champion];
+            $brackets[$cat] = ['rounds' => $rounds, 'champion' => $champion, 'third' => $third];
         }
 
         return Inertia::render('Public/Bagan', [

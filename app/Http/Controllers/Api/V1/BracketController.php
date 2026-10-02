@@ -39,11 +39,18 @@ class BracketController extends Controller
         if ($final && $final->status === 'finished' && $final->resolveWinnerId()) {
             $champion = $final->team1_id === $final->resolveWinnerId() ? $final->team1 : $final->team2;
         }
+        $third = null;
+        $po = $matches->firstWhere('slot', 'PO-1');
+        if ($po && $po->status === 'finished' && $po->resolveWinnerId()) {
+            $third = $po->team1_id === $po->resolveWinnerId() ? $po->team1 : $po->team2;
+            $third?->append('logo_url');
+        }
 
         return response()->json([
             'data' => [
                 'rounds' => $rounds,
                 'champion' => $champion?->append('logo_url'),
+                'third' => $third,
             ],
         ]);
     }

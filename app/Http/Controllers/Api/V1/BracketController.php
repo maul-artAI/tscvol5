@@ -65,6 +65,7 @@ class BracketController extends Controller
         $map = self::r16Sources();
         $filledSlots = 0;
         $skippedSlots = 0;
+        $slotRows = 0;
         $incomplete = [];
 
         foreach ($map as $num => $sides) {
@@ -75,6 +76,7 @@ class BracketController extends Controller
             if (! $slot) {
                 continue;
             }
+            $slotRows++;
 
             foreach (['team1', 'team2'] as $side) {
                 [$group, $pos] = $sides[$side];
@@ -99,6 +101,12 @@ class BracketController extends Controller
 
         $incomplete = array_values(array_unique($incomplete));
 
+        if ($slotRows === 0) {
+            return response()->json([
+                'message' => "Skeleton bracket $category belum ada — pulihkan dulu lewat seeder bracket, baru Tarik.",
+            ], 422);
+        }
+
         return response()->json([
             'message' => "16 Besar terisi: $filledSlots slot diisi, $skippedSlots dilewati (sudah terisi).".
                 ($incomplete ? ' Grup yang belum selesai dan dilewati: '.implode(', ', $incomplete).'. Selesaikan dulu laganya lalu tarik lagi.' : ''),
@@ -112,14 +120,17 @@ class BracketController extends Controller
      */
     public static function r16Sources(): array
     {
-        $pairs = [['A', 'B'], ['C', 'D'], ['E', 'F'], ['G', 'H']];
-        $map = [];
-
-        foreach ($pairs as $k => [$g1, $g2]) {
-            $map[2 * $k + 1] = ['team1' => [$g1, 1], 'team2' => [$g2, 2]];
-            $map[2 * $k + 2] = ['team1' => [$g2, 1], 'team2' => [$g1, 2]];
-        }
-
-        return $map;
+        // Slot => sisi => [huruf grup, posisi klasemen (1=juara, 2=runner-up)].
+        // R16-1..4: juara vs runner-up sepasang; R16-5..8: dibalik.
+        return [
+            1 => ['team1' => ['A', 1], 'team2' => ['B', 2]],
+            2 => ['team1' => ['C', 1], 'team2' => ['D', 2]],
+            3 => ['team1' => ['E', 1], 'team2' => ['F', 2]],
+            4 => ['team1' => ['G', 1], 'team2' => ['H', 2]],
+            5 => ['team1' => ['H', 1], 'team2' => ['G', 2]],
+            6 => ['team1' => ['F', 1], 'team2' => ['E', 2]],
+            7 => ['team1' => ['D', 1], 'team2' => ['C', 2]],
+            8 => ['team1' => ['B', 1], 'team2' => ['A', 2]],
+        ];
     }
 }

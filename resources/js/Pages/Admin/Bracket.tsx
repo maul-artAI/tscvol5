@@ -14,7 +14,7 @@ import {
   type DragStartEvent,
 } from "@dnd-kit/core";
 import { apiFetch, revalidateSite, type StandingRow, type Team } from "../../lib/api";
-import BracketDiagram, { isPenaltyDecided, winnerOf, type BracketRound } from "../../Components/BracketDiagram";
+import BracketDiagram, { expectedLabel, isPenaltyDecided, winnerOf, type BracketRound } from "../../Components/BracketDiagram";
 import AdminLayout from "../../Layouts/AdminLayout";
 import { useFeedback } from "../../Components/Feedback";
 
@@ -29,71 +29,7 @@ function fmtRingkas(match_date?: string | null, kickoff?: string | null): string
   return kickoff ? `${tgl} • ${kickoff.slice(0, 5)}` : tgl;
 }
 
-/** Chip tim di palet (draggable). */
-function TeamChip({ team, placed }: { team: Team; placed: boolean }) {
-  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
-    id: `team:${team.id}`,
-  });
-  const style = transform ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)` } : undefined;
-  return (
-    <div
-      ref={setNodeRef}
-      style={style}
-      {...listeners}
-      {...attributes}
-      title={team.name}
-      className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-bold border cursor-grab active:cursor-grabbing touch-none select-none transition ${
-        isDragging
-          ? "opacity-40 border-brand"
-          : placed
-            ? "bg-brand/10 border-brand/40 text-white"
-            : "bg-dark border-border text-muted hover:text-white hover:border-brand/50"
-      }`}
-    >
-      <span className="truncate">{team.short_name || team.name}</span>
-      {placed && <i className="fa-solid fa-check text-[10px] text-brand shrink-0"></i>}
-    </div>
-  );
-}
-
-/** Satu kelompok palet (juara / runner-up / lainnya). */
-function QualGroup({
-  title,
-  icon,
-  rows,
-  slottedIds,
-  emptyText,
-}: {
-  title: string;
-  icon: string;
-  rows: StandingRow[];
-  slottedIds: Set<number>;
-  emptyText: string;
-}) {
-  return (
-    <div className="mb-3 last:mb-0">
-      <h4 className="text-[11px] font-bold tracking-widest text-muted uppercase mb-1.5">
-        <i className={`${icon} text-brand mr-1.5`}></i>{title} ({rows.length})
-      </h4>
-      {rows.length === 0 ? (
-        <p className="text-[11px] text-muted/70 italic">{emptyText}</p>
-      ) : (
-        <div className="flex flex-wrap gap-1.5">
-          {rows.map((r) => (
-            <span key={r.team.id} className="flex flex-col">
-              <TeamChip team={r.team} placed={slottedIds.has(r.team.id)} />
-              <span className="text-[10px] text-muted mt-0.5 pl-0.5">
-                {title.includes("Juara") ? "Juara" : title.includes("Runner") ? "Runner-up" : ""} {r.team.group_name || ""}
-              </span>
-            </span>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-/** Satu sisi slot laga (drop target). */
+/** Satu sisi slot laga: drop target + drag source (pindah/tukar antar-slot). */
 function SlotTarget({
   matchId,
   slot,
@@ -105,6 +41,7 @@ function SlotTarget({
   pen,
   showPen,
   won,
+  scheduled,
 }: {
   matchId: number;
   slot?: string | null;
@@ -116,14 +53,29 @@ function SlotTarget({
   pen?: number | null;
   showPen?: boolean;
   won?: boolean;
+  scheduled?: boolean;
 }) {
-  const { setNodeRef, isOver } = useDroppable({ id: `slot:${matchId}:${side}` });
+  const { setNodeRef: setDropRef, isOver } = useDroppable({ id: `slot:${matchId}:${side}` });
+  const {
+    attributes,
+    listeners,
+    setNodeRef: setDragRef,
+    transform,
+    isDragging,
+  } = useDraggable({ id: `placed:${matchId}:${side}`, disabled: !team?.id });
+  const setRefs = (node: HTMLDivElement | null) => {
+    setDragRef(node);
+    setDropRef(node);
+  };
+  const dragStyle = transform ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)` } : undefined;
   return (
     <div
-      ref={setNodeRef}
+      ref={setRefs}
+      style={dragStyle}
+      {...(team?.id ? { ...listeners, ...attributes } : {})}
       className={`w-full px-3 py-2 text-xs border-t border-white/5 flex items-center gap-2 transition ${
         isOver ? "bg-brand/15 ring-2 ring-inset ring-brand" : ""
-      } ${busy ? "opacity-50 pointer-events-none" : ""}`}
+      } ${busy ? "opacity-50 pointer-events-none" : ""} ${team?.id ? "cursor-grab active:cursor-grabbing touch-none select-none" : ""} ${isDragging ? "opacity-40" : ""}`}
       aria-label={`${side === "team1" ? "Tim 1" : "Tim 2"} slot ${slot || ""}: seret tim ke sini`}
     >
       {team?.id ? (
@@ -136,7 +88,7 @@ function SlotTarget({
           )}
           {score !== undefined && (
             <span className="tabular-nums font-bold text-muted shrink-0">
-              {score}
+              {scheduled ? "–" : score}
               {showPen && pen !== null && pen !== undefined && (
                 <span className="text-amber-400"> ({pen})</span>
               )}
@@ -153,7 +105,7 @@ function SlotTarget({
           </button>
         </>
       ) : (
-        <span className="text-muted/60 italic">— {side === "team1" ? "Tim 1" : "Tim 2"}: seret tim ke sini (TBD) —</span>
+        <span className="text-muted/60 italic">— {expectedLabel(slot, side) || (side === "team1" ? "Tim 1" : "Tim 2")}: seret tim ke sini —</span>
       )}
     </div>
   );
@@ -182,44 +134,6 @@ export default function AdminBracketPage({ initialCategory, initialBracket, init
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
     useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 5 } })
   );
-
-  // Kelompok lolos per grup: juara (posisi 1) & runner-up (posisi 2).
-  // rows() terurut global per kriteria yang sama → urutan dalam grup = peringkat grup.
-  const qualified = useMemo(() => {
-    const byGroup = new Map<string, StandingRow[]>();
-    for (const r of gtable) {
-      const g = r.team.group_name || "";
-      if (!g) continue;
-      if (!byGroup.has(g)) byGroup.set(g, []);
-      byGroup.get(g)!.push(r);
-    }
-    const winners: StandingRow[] = [];
-    const runners: StandingRow[] = [];
-    const others: StandingRow[] = [];
-    [...byGroup.entries()]
-      .sort(([a], [b]) => a.localeCompare(b))
-      .forEach(([, rows]) => {
-        rows.forEach((r, i) => {
-          if (i === 0) winners.push(r);
-          else if (i === 1) runners.push(r);
-          else others.push(r);
-        });
-      });
-    return { winners, runners, others };
-  }, [gtable]);
-
-  // ID tim yang sudah terpasang di slot mana pun (penanda di palet).
-  const slottedIds = useMemo(() => {    const ids = new Set<number>();
-    for (const r of rounds) {
-      for (const m of r.matches) {
-        const t1 = (m as { team1?: { id?: number } | null }).team1;
-        const t2 = (m as { team2?: { id?: number } | null }).team2;
-        if (t1?.id) ids.add(t1.id);
-        if (t2?.id) ids.add(t2.id);
-      }
-    }
-    return ids;
-  }, [rounds]);
 
   const slotOf = (id?: number | null): string => {
     if (!id) return "";
@@ -292,6 +206,14 @@ export default function AdminBracketPage({ initialCategory, initialBracket, init
     }
   }
 
+  /** PUT mentah tanpa toast/load (untuk rangkaian pindah-tukar). */
+  async function putTeam(matchId: number, side: "team1" | "team2", teamId: string) {
+    await apiFetch(`/matches/${matchId}`, {
+      method: "PUT",
+      body: { [`${side}_id`]: teamId ? Number(teamId) : null },
+    });
+  }
+
   async function setLapangan(matchId: number, lapangan: string) {
     setSaving(matchId);
     try {
@@ -344,12 +266,27 @@ export default function AdminBracketPage({ initialCategory, initialBracket, init
     }
   }
 
-  function handleDragStart(e: DragStartEvent) {
-    const id = String(e.active.id);
-    if (!id.startsWith("team:")) return;
-    setDragTeam(teams.find((t) => String(t.id) === id.slice(5)) || null);
+  function findSlot(matchId: string) {
+    for (const r of rounds) {
+      const m = r.matches.find((x) => String(x.id) === matchId);
+      if (m) return { round: r, match: m };
+    }
+    return null;
   }
 
+  function handleDragStart(e: DragStartEvent) {
+    const id = String(e.active.id);
+    if (!id.startsWith("placed:")) {
+      setDragTeam(null);
+      return;
+    }
+    const [, sm, ss] = id.split(":");
+    const found = findSlot(sm);
+    const t = ss === "team1" ? found?.match.team1 : found?.match.team2;
+    setDragTeam(t && t.id ? { id: t.id, name: t.name, short_name: t.short_name, category: cat } as Team : null);
+  }
+
+  /** Pindah/tukar tim antar-slot. Swap menjaga multiset → tak bisa ganda. */
   function handleDragEnd(e: DragEndEvent) {
     const team = dragTeam;
     setDragTeam(null);
@@ -357,18 +294,31 @@ export default function AdminBracketPage({ initialCategory, initialBracket, init
     if (!team || !over.startsWith("slot:")) return;
     const [, matchId, side] = over.split(":");
     if (side !== "team1" && side !== "team2") return;
-    // Cegah ganda dalam satu ronde: tim yang sama tak boleh di dua slot.
-    const round = rounds.find((r) => r.matches.some((m) => String(m.id) === matchId));
-    const dup = round?.matches.find(
-      (m) =>
-        String(m.id) !== matchId &&
-        (m.team1?.id === team.id || m.team2?.id === team.id)
-    );
-    if (dup) {
-      toast.error(`${team.short_name || team.name} sudah terpasang di slot ${dup.slot || ""} pada babak ini.`);
-      return;
-    }
-    assignTeam(Number(matchId), side, String(team.id)).catch(() => {});
+    const activeId = String(e.active.id);
+    if (!activeId.startsWith("placed:")) return;
+    const [, sm, ss] = activeId.split(":");
+    if (sm === matchId && ss === side) return;
+    const src = findSlot(sm);
+    const dst = findSlot(matchId);
+    if (!src || !dst) return;
+    const dstTeam = side === "team1" ? dst.match.team1 : dst.match.team2;
+    (async () => {
+      setSaving(Number(matchId));
+      try {
+        await putTeam(Number(matchId), side, String(team.id));
+        if (ss === "team1" || ss === "team2") {
+          await putTeam(Number(sm), ss, dstTeam?.id ? String(dstTeam.id) : "");
+        }
+        revalidateSite(["/bagan"]);
+        await load(cat);
+        toast.success(`Slot ${slotOf(Number(matchId))} diperbarui.`);
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Gagal memindahkan.");
+        await load(cat).catch(() => {});
+      } finally {
+        setSaving(null);
+      }
+    })().catch(() => {});
   }
 
   return (
@@ -475,34 +425,7 @@ export default function AdminBracketPage({ initialCategory, initialBracket, init
         </p>
       ) : (
         <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd} onDragCancel={() => setDragTeam(null)}>
-          {/* Palet tim lolos — seret ke slot */}
-          <div className="bg-surface border border-border rounded-xl p-4 mb-4">
-            <div className="flex items-center justify-between mb-1">
-              <h3 className="font-bold text-sm uppercase tracking-wide">
-                <i className="fa-solid fa-grip-vertical text-brand mr-2"></i>Daftar Tim Lolos {cat}
-              </h3>
-              <span className="text-[11px] text-muted">seret ke slot • centang = sudah terpasang</span>
-            </div>
-            <p className="text-[11px] text-muted mb-3">Otomatis dari klasemen fase grup. Di layar sentuh: tahan lalu seret.</p>
-            {gtable.length === 0 ? (
-              <p className="text-xs text-muted">Belum ada data klasemen {cat}.</p>
-            ) : (
-              <>
-                <QualGroup title="Juara Grup" icon="fa-solid fa-crown" rows={qualified.winners} slottedIds={slottedIds} emptyText="Belum ada juara grup." />
-                <QualGroup title="Runner-up" icon="fa-solid fa-medal" rows={qualified.runners} slottedIds={slottedIds} emptyText="Belum ada runner-up." />
-                {qualified.others.length > 0 && (
-                  <details>
-                    <summary className="text-[11px] font-bold tracking-widest text-muted uppercase cursor-pointer hover:text-white">
-                      Tim lainnya ({qualified.others.length})
-                    </summary>
-                    <div className="mt-1.5">
-                      <QualGroup title="Peringkat 3+" icon="fa-solid fa-list" rows={qualified.others} slottedIds={slottedIds} emptyText="" />
-                    </div>
-                  </details>
-                )}
-              </>
-            )}
-          </div>
+          <p className="text-[11px] text-muted mb-3">Seret tim antar-slot untuk pindah/tukar. Di layar sentuh: tahan lalu seret.</p>
           <BracketDiagram
             rounds={rounds}
             champion={champion}
@@ -518,6 +441,7 @@ export default function AdminBracketPage({ initialCategory, initialBracket, init
                 pen={side === "team1" ? m.penalty1 : m.penalty2}
                 showPen={isPenaltyDecided(m)}
                 won={winnerOf(m) === (side === "team1" ? 1 : 2)}
+                scheduled={m.status === "scheduled"}
               />
             )}
             renderCardFooter={(m) => (

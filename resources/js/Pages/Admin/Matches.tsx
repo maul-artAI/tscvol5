@@ -309,6 +309,7 @@ export default function AdminMatchesPage({ initialMatches, initialTeams }: { ini
                   <span className="block text-[11px] text-muted font-normal">
                     {m.lapangan} • {m.stage || m.category}
                     {m.round_label && <span className="text-brand"> • {m.round_label}{m.slot ? ` (${m.slot})` : ""}</span>}
+                    {m.slot && <span className="ml-1 text-[9px] font-bold bg-brand/15 text-brand px-1.5 py-0.5 rounded">BRACKET</span>}
                   </span>
                 </td>
                 <td className="p-3 font-display italic font-bold tabular-nums whitespace-nowrap">
@@ -349,7 +350,7 @@ export default function AdminMatchesPage({ initialMatches, initialTeams }: { ini
                   }); setDrawer({ mode: "edit", match: m }); }} title="Ubah" className="text-muted hover:text-white text-sm mr-2">
                     <i className="fa-solid fa-pen"></i>
                   </button>
-                  <button onClick={() => remove(m)} title="Hapus" className="text-muted hover:text-brand text-sm">
+                  <button onClick={() => remove(m)} title={m.slot ? "Slot bracket — hapus via halaman Bracket" : "Hapus"} disabled={!!m.slot} className="text-muted hover:text-brand disabled:opacity-30 disabled:cursor-not-allowed text-sm">
                     <i className="fa-solid fa-trash"></i>
                   </button>
                 </td>

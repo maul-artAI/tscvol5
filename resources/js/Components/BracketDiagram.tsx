@@ -28,7 +28,7 @@ export type BracketRound = { order: number; label: string; matches: BracketMatch
 
 type Line = { d: string; hot: boolean };
 
-function TeamRow({ team, score, won, pen, showPen }: { team?: Team | null; score: number; won: boolean; pen?: number | null; showPen?: boolean }) {
+function TeamRow({ team, score, won, pen, showPen, slot, side, emptyLabel, notStarted }: { team?: Team | null; score: number; won: boolean; pen?: number | null; showPen?: boolean; slot?: string | null; side?: "team1" | "team2"; emptyLabel?: string | null; notStarted?: boolean }) {
   return (
     <div className={`flex items-center justify-between gap-2 px-3 py-2 ${won ? "bg-white/5" : ""}`}>
       <span className={`flex items-center gap-2 min-w-0 text-[13px] ${won ? "font-bold text-white" : "text-gray-300"}`}>
@@ -37,12 +37,12 @@ function TeamRow({ team, score, won, pen, showPen }: { team?: Team | null; score
         ) : (
           <i className="fa-solid fa-shield-halved text-muted shrink-0"></i>
         )}
-        <span className="truncate">{team ? team.short_name || team.name : "TBD"}</span>
+        <span className="truncate">{team ? team.short_name || team.name : emptyLabel || expectedLabel(slot, side) || "TBD"}</span>
         {won && <i className="fa-solid fa-check text-green-400 text-xs shrink-0"></i>}
         {showPen && <span className="text-[9px] font-bold bg-white/10 text-gray-300 px-1.5 py-0.5 rounded shrink-0">PEN</span>}
       </span>
       <span className={`font-display italic font-bold tabular-nums ${won ? "text-white" : "text-muted"}`}>
-        {score}
+        {notStarted ? "–" : score}
         {showPen && pen !== null && pen !== undefined && (
           <span className="text-amber-400 text-sm"> ({pen})</span>
         )}
@@ -58,6 +58,10 @@ function TeamRowOrCustom({
   won,
   pen,
   showPen,
+  slot,
+  side,
+  emptyLabel,
+  notStarted,
 }: {
   custom?: React.ReactNode;
   team?: Team | null;
@@ -65,9 +69,33 @@ function TeamRowOrCustom({
   won: boolean;
   pen?: number | null;
   showPen?: boolean;
+  slot?: string | null;
+  side?: "team1" | "team2";
+  emptyLabel?: string | null;
+  notStarted?: boolean;
 }) {
   if (custom !== undefined) return <>{custom}</>;
-  return <TeamRow team={team} score={score} won={won} pen={pen} showPen={showPen} />;
+  return <TeamRow team={team} score={score} won={won} pen={pen} showPen={showPen} slot={slot} side={side} emptyLabel={emptyLabel} notStarted={notStarted} />;
+}
+
+/** Label sumber slot R16 bila tim belum terisi (cermin r16Sources backend). */
+const R16_SOURCES: Record<string, { team1: [string, number]; team2: [string, number] }> = {
+  "R16-1": { team1: ["A", 1], team2: ["B", 2] },
+  "R16-2": { team1: ["C", 1], team2: ["D", 2] },
+  "R16-3": { team1: ["E", 1], team2: ["F", 2] },
+  "R16-4": { team1: ["G", 1], team2: ["H", 2] },
+  "R16-5": { team1: ["H", 1], team2: ["G", 2] },
+  "R16-6": { team1: ["F", 1], team2: ["E", 2] },
+  "R16-7": { team1: ["D", 1], team2: ["C", 2] },
+  "R16-8": { team1: ["B", 1], team2: ["A", 2] },
+};
+
+export function expectedLabel(slot?: string | null, side?: "team1" | "team2"): string | null {
+  if (!slot || !side) return null;
+  const src = R16_SOURCES[slot];
+  if (!src) return null;
+  const [group, pos] = src[side];
+  return `${pos === 1 ? "WIN" : "RU"} Grup ${group}`;
 }
 
 /** 0 = belum ada pemenang, 1 = tim 1, 2 = tim 2 (termasuk via penalti). */
@@ -194,6 +222,11 @@ export default function BracketDiagram({
                 const w = winnerOf(m);
                 const decided = w !== 0;
                 const pen = isPenaltyDecided(m);
+                const feeders = rounds.flatMap((rr) => rr.matches).filter((x) => x.winner_next_match_id === m.id);
+                const feedLabel = (side: "team1" | "team2") => {
+                  const f = feeders.find((x) => x.winner_next_side === side);
+                  return f ? `Pemenang ${f.slot || `#${f.id}`}` : null;
+                };
                 return (
                   <div
                     key={m.id}
@@ -222,6 +255,10 @@ export default function BracketDiagram({
                       won={w === 1}
                       pen={m.penalty1}
                       showPen={pen}
+                      slot={m.slot}
+                      side="team1"
+                      emptyLabel={feedLabel("team1")}
+                      notStarted={m.status === "scheduled"}
                     />
                     <div className="border-t border-white/5" />
                     <TeamRowOrCustom
@@ -231,6 +268,10 @@ export default function BracketDiagram({
                       won={w === 2}
                       pen={m.penalty2}
                       showPen={pen}
+                      slot={m.slot}
+                      side="team2"
+                      emptyLabel={feedLabel("team2")}
+                      notStarted={m.status === "scheduled"}
                     />
                     {renderCardFooter?.(m)}
                     {m.status === "live" && m.clock_display && (

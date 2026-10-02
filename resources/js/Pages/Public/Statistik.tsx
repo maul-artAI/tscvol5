@@ -1,9 +1,12 @@
 import PublicLayout from "../../Layouts/PublicLayout";
 import Reveal from "../../Components/Reveal";
-import StatistikView, { type StatEntry } from "../../Components/StatistikView";
+import StatistikView from "../../Components/StatistikView";
+import type { StatEntry } from "../../Components/StatistikView";
+export type StatBlock = { scorers: StatEntry[]; assists: StatEntry[] };
 
-export default function StatistikPage({ initial }: { initial: { scorers: StatEntry[]; assists: StatEntry[] } }) {
-  const top = initial || { scorers: [], assists: [] };
+export default function StatistikPage({ initial, initialSmp }: { initial: StatBlock; initialSmp?: StatBlock }) {
+  const sma = initial || { scorers: [], assists: [] };
+  const smp = initialSmp || { scorers: [], assists: [] };
 
   return (
     <PublicLayout>
@@ -17,8 +20,7 @@ export default function StatistikPage({ initial }: { initial: { scorers: StatEnt
         </Reveal>
 
         <Reveal delay={120}>
-
-        <StatistikView initialScorers={top.scorers} initialAssists={top.assists} />
+        <StatistikView initialSma={sma} initialSmp={smp} />
         </Reveal>
       </div>
     </main>

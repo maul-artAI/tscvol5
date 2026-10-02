@@ -135,11 +135,14 @@ class PublicPageController extends Controller
 
     public function statistik(): Response
     {
-        $top = app(\App\Http\Controllers\Api\V1\StatisticsController::class)
-            ->top(Request::create('/x', 'GET', ['category' => 'SMA']))
-            ->getData(true);
+        $ctrl = app(\App\Http\Controllers\Api\V1\StatisticsController::class);
+        $sma = $ctrl->top(Request::create('/x', 'GET', ['category' => 'SMA']))->getData(true);
+        $smp = $ctrl->top(Request::create('/x', 'GET', ['category' => 'SMP']))->getData(true);
 
-        return Inertia::render('Public/Statistik', ['initial' => $top['data']]);
+        return Inertia::render('Public/Statistik', [
+            'initial' => $sma['data'],
+            'initialSmp' => $smp['data'],
+        ]);
     }
 
     public function pertandingan(TournamentMatch $match): Response

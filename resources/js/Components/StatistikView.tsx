@@ -1,13 +1,12 @@
 
-import { useEffect, useState } from "react";
-import { apiFetch } from "../lib/api";
-
 export type StatEntry = {
   name: string;
   team?: { id: number; short_name?: string | null; name: string; logo_url?: string | null } | null;
   goals: number;
   assists: number;
 };
+
+export type StatBlock = { scorers: StatEntry[]; assists: StatEntry[] };
 
 function RankTable({ rows, valueKey, valueLabel }: { rows: StatEntry[]; valueKey: "goals" | "assists"; valueLabel: string }) {
   if (rows.length === 0) {
@@ -53,61 +52,41 @@ function RankTable({ rows, valueKey, valueLabel }: { rows: StatEntry[]; valueKey
 }
 
 export default function StatistikView({
-  initialScorers,
-  initialAssists,
+  initialSma,
+  initialSmp,
 }: {
-  initialScorers: StatEntry[];
-  initialAssists: StatEntry[];
+  initialSma: StatBlock;
+  initialSmp: StatBlock;
 }) {
-  const [cat, setCat] = useState<"SMA" | "SMP">("SMA");
-  const [scorers, setScorers] = useState<StatEntry[]>(initialScorers);
-  const [assists, setAssists] = useState<StatEntry[]>(initialAssists);
-
-  useEffect(() => {
-    if (cat === "SMA") {
-      setScorers(initialScorers);
-      setAssists(initialAssists);
-      return;
-    }
-    apiFetch<{ data: { scorers: StatEntry[]; assists: StatEntry[] } }>(
-      `/statistics/top?category=${cat}`,
-      { auth: false }
-    )
-      .then((res) => {
-        setScorers(res.data.scorers);
-        setAssists(res.data.assists);
-      })
-      .catch(() => {});
-  }, [cat, initialScorers, initialAssists]);
-
   return (
     <>
-      <div className="flex gap-2 mt-6 mb-8">
-        {(["SMA", "SMP"] as const).map((c) => (
-          <button
-            key={c}
-            onClick={() => setCat(c)}
-            className={`px-5 py-2 rounded text-sm font-bold uppercase transition ${
-              cat === c ? "bg-brand text-white live-glow" : "bg-surface border border-border text-muted hover:text-white"
-            }`}
-          >
-            {c}
-          </button>
-        ))}
-      </div>
-
-      <div className="grid lg:grid-cols-2 gap-6">
+      <div className="grid lg:grid-cols-2 gap-6 mt-6">
         <div>
           <h2 className="font-display italic font-bold text-xl uppercase mb-3">
-            <i className="fa-regular fa-futbol text-brand mr-2"></i>Top Skor
+            <i className="fa-regular fa-futbol text-brand mr-2"></i>Top Skor SMA
           </h2>
-          <RankTable rows={scorers} valueKey="goals" valueLabel="Gol" />
+          <RankTable rows={initialSma.scorers} valueKey="goals" valueLabel="Gol" />
         </div>
         <div>
           <h2 className="font-display italic font-bold text-xl uppercase mb-3">
-            <i className="fa-solid fa-handshake text-brand mr-2"></i>Top Assist
+            <i className="fa-regular fa-futbol text-brand mr-2"></i>Top Skor SMP
           </h2>
-          <RankTable rows={assists} valueKey="assists" valueLabel="Ast" />
+          <RankTable rows={initialSmp.scorers} valueKey="goals" valueLabel="Gol" />
+        </div>
+      </div>
+
+      <div className="grid lg:grid-cols-2 gap-6 mt-8">
+        <div>
+          <h2 className="font-display italic font-bold text-xl uppercase mb-3">
+            <i className="fa-solid fa-handshake text-brand mr-2"></i>Top Assist SMA
+          </h2>
+          <RankTable rows={initialSma.assists} valueKey="assists" valueLabel="Ast" />
+        </div>
+        <div>
+          <h2 className="font-display italic font-bold text-xl uppercase mb-3">
+            <i className="fa-solid fa-handshake text-brand mr-2"></i>Top Assist SMP
+          </h2>
+          <RankTable rows={initialSmp.assists} valueKey="assists" valueLabel="Ast" />
         </div>
       </div>
     </>

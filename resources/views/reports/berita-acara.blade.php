@@ -65,6 +65,13 @@
     <td class="score">{{ $match->team1_score }} - {{ $match->team2_score }}</td>
     <td class="team">{{ $match->team2->name ?? 'TBD' }}</td>
   </tr>
+  @if($match->is_penalty || (!is_null($match->penalty1) && !is_null($match->penalty2)))
+  <tr>
+    <td class="center" style="font-size:12px">Adu Penalti</td>
+    <td class="score" style="font-size:16px">({{ $match->penalty1 ?? '-' }} - {{ $match->penalty2 ?? '-' }})</td>
+    <td class="center" style="font-size:12px">PEN</td>
+  </tr>
+  @endif
 </table>
 <br>
 <table>
@@ -77,11 +84,10 @@
 
 <h3 class="section">B. Ringkasan Kejadian</h3>
 <table class="summary">
-  <tr><th class="center">Kejadian</th><th class="center">{{ $match->team1->short_name ?? 'Tim 1' }}</th><th class="center">{{ $match->team2->short_name ?? 'Tim 2' }}</th></tr>
+  <tr><th class="center">Kejadian</th><th class="center">{{ $match->team1->short_name ?? $match->team1->name ?? '' }}</th><th class="center">{{ $match->team2->short_name ?? $match->team2->name ?? '' }}</th></tr>
   <tr><td>Gol</td><td class="center">{{ $summary['team1']['goal'] }}</td><td class="center">{{ $summary['team2']['goal'] }}</td></tr>
   <tr><td>Kartu Kuning</td><td class="center">{{ $summary['team1']['yellow_card'] }}</td><td class="center">{{ $summary['team2']['yellow_card'] }}</td></tr>
   <tr><td>Kartu Merah</td><td class="center">{{ $summary['team1']['red_card'] }}</td><td class="center">{{ $summary['team2']['red_card'] }}</td></tr>
-  <tr><td>Pelanggaran</td><td class="center">{{ $summary['team1']['foul'] }}</td><td class="center">{{ $summary['team2']['foul'] }}</td></tr>
 </table>
 
 <h3 class="section">C. Kronologi Kejadian</h3>
@@ -106,8 +112,8 @@
 <p>Demikian berita acara ini dibuat dengan sebenarnya dan ditandatangani oleh kedua kapten tim.</p>
 <table class="sig">
   <tr>
-    <td>Kapten {{ $match->team1->short_name ?? 'Tim 1' }},<br><br><div class="space"></div>( &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; )</td>
-    <td>Kapten {{ $match->team2->short_name ?? 'Tim 2' }},<br><br><div class="space"></div>( &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; )</td>
+    <td>Kapten {{ $match->team1->short_name ?? $match->team1->name ?? '' }},<br><br><div class="space"></div>( &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; )</td>
+    <td>Kapten {{ $match->team2->short_name ?? $match->team2->name ?? '' }},<br><br><div class="space"></div>( &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; )</td>
   </tr>
   <tr>
     <td>Wasit,<br><br><div class="space"></div>( &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; )</td>

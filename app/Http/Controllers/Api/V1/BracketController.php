@@ -36,8 +36,8 @@ class BracketController extends Controller
 
         $champion = null;
         $final = $matches->sortByDesc('round_order')->first();
-        if ($final && $final->status === 'finished' && $final->team1_score !== $final->team2_score) {
-            $champion = $final->team1_score > $final->team2_score ? $final->team1 : $final->team2;
+        if ($final && $final->status === 'finished' && $final->resolveWinnerId()) {
+            $champion = $final->team1_id === $final->resolveWinnerId() ? $final->team1 : $final->team2;
         }
 
         return response()->json([

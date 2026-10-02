@@ -1,6 +1,7 @@
 import { Link } from "@inertiajs/react";
 import type { Team } from "../../lib/api";
 import PublicLayout from "../../Layouts/PublicLayout";
+import Reveal from "../../Components/Reveal";
 
 const ORDER: string[] = [];
 (["SMA", "SMP"] as const).forEach((c) => {
@@ -22,10 +23,14 @@ export default function TimPage({ teams }: { teams: Team[] }) {
     <PublicLayout>
     <main className="min-h-screen bg-dark text-white">
       <div className="max-w-[1100px] mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <Reveal>
         <h1 className="font-display italic font-bold text-4xl md:text-5xl uppercase mt-3">
           Daftar <span className="text-brand">Tim</span>
         </h1>
         <p className="text-sm text-muted mt-2">{teams.length} tim peserta.</p>
+        </Reveal>
+
+        <Reveal delay={120}>
 
         {teams.length === 0 ? (
           <p className="text-sm text-muted mt-6">Belum ada data tim.</p>
@@ -63,6 +68,7 @@ export default function TimPage({ teams }: { teams: Team[] }) {
             </section>
           ))
         )}
+        </Reveal>
       </div>
     </main>
     </PublicLayout>

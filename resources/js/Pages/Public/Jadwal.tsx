@@ -2,6 +2,7 @@
 import { useMemo, useState } from "react";
 import type { TournamentMatch } from "../../lib/api";
 import PublicLayout from "../../Layouts/PublicLayout";
+import Reveal from "../../Components/Reveal";
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"];
 
@@ -25,10 +26,13 @@ export default function JadwalPage({ matches }: { matches: TournamentMatch[] }) 
     <PublicLayout>
     <main className="min-h-screen bg-dark text-white">
       <div className="max-w-[1100px] mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <Reveal>
         <h1 className="font-display italic font-bold text-4xl md:text-5xl uppercase mt-3">
           Jadwal <span className="text-brand">Pertandingan</span>
         </h1>
+        </Reveal>
 
+        <Reveal delay={120}>
         <div className="flex flex-wrap gap-2 mt-6">
           {(["SMA", "SMP"] as const).map((c) => (
             <button
@@ -88,6 +92,7 @@ export default function JadwalPage({ matches }: { matches: TournamentMatch[] }) 
             ))}
           </div>
         )}
+        </Reveal>
       </div>
     </main>
     </PublicLayout>

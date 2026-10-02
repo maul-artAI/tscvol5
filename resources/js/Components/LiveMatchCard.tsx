@@ -1,6 +1,8 @@
+import { useEffect, useMemo, useState } from "react";
+
 export type TimelineRow = {
   minute: string;
-  icon: "ball" | "yellow" | "red" | "foul";
+  icon: "ball" | "yellow" | "red" | "foul" | "miss";
   text: string;
   sub?: string;
   side: "team1" | "team2";
@@ -22,6 +24,14 @@ type Props = {
   team1Score: number;
   team2Score: number;
   clock: string;
+  period?: string | null;
+  clockDisplay?: string;
+  matchId?: number;
+  clockRunning?: boolean;
+  clockEnded?: boolean;
+  pen1?: number | null;
+  pen2?: number | null;
+  showPen?: boolean;
   timeline: TimelineRow[];
 };
 
@@ -29,7 +39,36 @@ function TimelineIcon({ icon }: { icon: TimelineRow["icon"] }) {
   if (icon === "ball") return <i className="fa-regular fa-futbol text-white"></i>;
   if (icon === "yellow") return <i className="fa-solid fa-square text-yellow-400"></i>;
   if (icon === "foul") return <i className="fa-solid fa-whistle text-gray-400"></i>;
+  if (icon === "miss") return <i className="fa-solid fa-circle-xmark text-neutral-500"></i>;
   return <i className="fa-solid fa-square text-red-500"></i>;
+}
+
+function parseClock(display: string): number {
+  const m = display.trim().match(/^(\d+)(?::(\d{1,2}))?$/);
+  if (!m) return 0;
+  return parseInt(m[1], 10) * 60 + parseInt(m[2] || "0", 10);
+}
+
+function fmtClock(total: number): string {
+  return `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
+}
+
+/** Jam berdetak lokal (sinkron ulang tiap data berubah / socket / polling). */
+function TickClock({ matchId, display, running, ended }: { matchId?: number; display: string; running?: boolean; ended?: boolean }) {
+  const base = useMemo(() => parseClock(display), [display, matchId]);
+  const [tick, setTick] = useState(0);
+
+  useEffect(() => {
+    setTick(0);
+  }, [display, running, matchId]);
+
+  useEffect(() => {
+    if (!running || ended) return;
+    const t = setInterval(() => setTick((v) => v + 1), 1000);
+    return () => clearInterval(t);
+  }, [running, ended, matchId]);
+
+  return <>{fmtClock(base + (running && !ended ? tick : 0))}</>;
 }
 
 function TeamBadge({ logo, icon, color }: { logo?: string | null; icon: string; color: string }) {
@@ -59,6 +98,14 @@ export default function LiveMatchCard({
   team1Score,
   team2Score,
   clock,
+  period,
+  clockDisplay,
+  matchId,
+  clockRunning,
+  clockEnded,
+  pen1,
+  pen2,
+  showPen,
   timeline,
 }: Props) {
   const t1 = timeline.filter((t) => t.side === "team1");
@@ -82,12 +129,20 @@ export default function LiveMatchCard({
             <div className="font-display text-5xl font-bold italic mb-1 flex items-center justify-center gap-2 tabular-nums">
               {team1Score} <span className="text-3xl text-border">-</span> {team2Score}
             </div>
+            {showPen && (
+              <div className="text-[11px] font-bold tabular-nums mb-1">
+                <span className="bg-white/10 text-gray-200 px-2 py-0.5 rounded">PEN {pen1 ?? 0} - {pen2 ?? 0}</span>
+              </div>
+            )}
             {live ? (
               <div className="bg-brand text-white text-[10px] px-2 py-0.5 rounded uppercase font-bold tracking-wider mb-1 live-glow">Live</div>
             ) : (
               <div className="bg-white/10 text-gray-300 text-[10px] px-2 py-0.5 rounded uppercase font-bold tracking-wider mb-1">Upcoming</div>
             )}
-            <div className="text-[10px] text-muted font-medium tabular-nums">{clock}</div>
+            <div className="text-[10px] text-muted font-medium tabular-nums">
+              {period && <span>{period} • </span>}
+              <TickClock matchId={matchId} display={clockDisplay || "00:00"} running={clockRunning} ended={clockEnded} />
+            </div>
           </div>
           <div className="text-center w-1/3">
             <TeamBadge logo={team2Logo} icon={team2Icon} color={team2Color} />

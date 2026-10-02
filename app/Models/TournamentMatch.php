@@ -27,6 +27,10 @@ class TournamentMatch extends Model
         'team2_id',
         'team1_score',
         'team2_score',
+        'penalty1',
+        'penalty2',
+        'is_penalty',
+        'is_walkover',
         'status',
         'period',
         'clock',
@@ -52,17 +56,14 @@ class TournamentMatch extends Model
 
     public function advanceWinner(): void
     {
-        if ($this->team1_score === $this->team2_score) {
-            return; // Seri: admin menentukan manual.
+        $winnerId = $this->resolveWinnerId();
+        if (! $winnerId) {
+            return; // Seri tanpa penalti: admin menentukan manual.
         }
 
         if (! $this->winner_next_match_id || ! $this->winner_next_side) {
             return;
         }
-
-        $winnerId = $this->team1_score > $this->team2_score
-            ? $this->team1_id
-            : $this->team2_id;
 
         $next = static::find($this->winner_next_match_id);
         if (! $next) {
@@ -73,6 +74,36 @@ class TournamentMatch extends Model
         if (empty($next->{$column})) {
             $next->update([$column => $winnerId]);
         }
+    }
+
+    /** ID pemenang: skor waktu normal, atau adu penalti bila imbang. */
+    public function resolveWinnerId(): ?int
+    {
+        if ($this->team1_score !== $this->team2_score) {
+            return $this->team1_score > $this->team2_score ? $this->team1_id : $this->team2_id;
+        }
+
+        if ($this->penalty1 !== null && $this->penalty2 !== null && $this->penalty1 !== $this->penalty2) {
+            return $this->penalty1 > $this->penalty2 ? $this->team1_id : $this->team2_id;
+        }
+
+        return null;
+    }
+
+    /**
+     * Turunkan flag adu penalti: true bila kedua skor penalti terisi dan
+     * berbeda; false bila keduanya dikosongkan. Selain itu pertahankan.
+     */
+    public static function derivePenaltyFlag($p1, $p2, bool $current): bool
+    {
+        if ($p1 !== null && $p2 !== null) {
+            return $p1 != $p2;
+        }
+        if ($p1 === null && $p2 === null) {
+            return false;
+        }
+
+        return $current;
     }
 
     public function winnerNextMatch(): BelongsTo

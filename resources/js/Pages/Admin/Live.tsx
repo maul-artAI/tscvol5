@@ -2,17 +2,19 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link } from "@inertiajs/react";
 import { apiFetch, revalidateSite, type TournamentMatch } from "../../lib/api";
+import { getEcho, mergeMatch, type LiveMatch } from "../../lib/echo";
 import { MatchTimer, PeriodChips, ScoreStepper, StatusSegment } from "../../Components/live-controls";
 import AdminLayout from "../../Layouts/AdminLayout";
+import { useFeedback } from "../../Components/Feedback";
 
-export default function LiveControlPage() {
-  const [live, setLive] = useState<TournamentMatch[]>([]);
-  const [scheduled, setScheduled] = useState<TournamentMatch[]>([]);
+export default function LiveControlPage({ initialLive, initialScheduled }: { initialLive?: TournamentMatch[]; initialScheduled?: TournamentMatch[] }) {
+  const [live, setLive] = useState<TournamentMatch[]>(initialLive ?? []);
+  const [scheduled, setScheduled] = useState<TournamentMatch[]>(initialScheduled ?? []);
   const [auto, setAuto] = useState(true);
   const [saving, setSaving] = useState<Record<number, boolean>>({});
   const [savedAt, setSavedAt] = useState<Record<number, string>>({});
+  const { toast } = useFeedback();
   const [lastRefresh, setLastRefresh] = useState<Date | null>(null);
-  const [msg, setMsg] = useState("");
   const inFlight = useRef(0);
 
   const load = useCallback(async () => {
@@ -26,8 +28,27 @@ export default function LiveControlPage() {
   }, []);
 
   useEffect(() => {
+    if (initialLive !== undefined) {
+      setLastRefresh(new Date());
+      return;
+    }
     load().catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Realtime via socket; polling 15 dtk tetap sebagai cadangan.
+  useEffect(() => {
+    const echo = getEcho();
+    echo?.channel("scores").listen(".match.updated", (e: { match: LiveMatch }) => {
+      if (!e?.match?.id) return;
+      const m = e.match as TournamentMatch;
+      setLive((prev) => mergeMatch(prev, m));
+      setScheduled((prev) => mergeMatch(prev, m));
+      setLastRefresh(new Date());
+    });
+    return () => {
+      echo?.leaveChannel("scores");
+    };
   }, []);
 
   // Auto-refresh, tapi jangan menimpa saat ada request simpan berjalan.
@@ -49,7 +70,7 @@ export default function LiveControlPage() {
       revalidateSite(["/", "/jadwal"]);
       setSavedAt((s) => ({ ...s, [id]: new Date().toLocaleTimeString("id-ID") }));
     } catch (err) {
-      setMsg(err instanceof Error ? err.message : "Gagal menyimpan.");
+      toast.error(err instanceof Error ? err.message : "Gagal menyimpan.");
       await load().catch(() => {});
     } finally {
       inFlight.current--;
@@ -58,7 +79,6 @@ export default function LiveControlPage() {
   }
 
   async function startLive(id: number) {
-    setMsg("");
     try {
       await apiFetch(`/matches/${id}/clock/start`, { method: "POST" }).catch(() => {});
       await apiFetch(`/matches/${id}/live`, {
@@ -67,7 +87,7 @@ export default function LiveControlPage() {
       });
       await load().catch(() => {});
     } catch (err) {
-      setMsg(err instanceof Error ? err.message : "Gagal memulai live.");
+      toast.error(err instanceof Error ? err.message : "Gagal memulai live.");
     }
   }
 
@@ -90,8 +110,6 @@ export default function LiveControlPage() {
       <p className="text-sm text-muted mb-6">
         Satu layar untuk 2 lapangan — tiap admin pegang 1 kartu. Semua perubahan tersimpan otomatis.
       </p>
-
-      {msg && <p className="mb-4 text-xs bg-white/5 border border-border rounded px-3 py-2">{msg}</p>}
 
       {live.length === 0 && (
         <p className="text-sm text-muted bg-surface border border-border rounded-xl p-4 mb-6">

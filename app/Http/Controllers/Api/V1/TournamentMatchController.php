@@ -48,6 +48,7 @@ class TournamentMatchController extends Controller
         $this->ensureLapanganFree($validated['lapangan'] ?? null, null, $validated['status'] ?? 'scheduled');
 
         $match = TournamentMatch::create($validated);
+        \App\Events\MatchUpdated::dispatch($match);
 
         return response()->json(
             ['message' => 'Pertandingan dibuat.', 'data' => $match->load(['team1', 'team2'])],
@@ -58,6 +59,12 @@ class TournamentMatchController extends Controller
     public function update(Request $request, TournamentMatch $match): JsonResponse
     {
         $validated = $request->validate($this->rules(true));
+        $validated['is_penalty'] = $this->resolveIsPenalty($validated, $match);
+
+        $dupError = $this->rejectKnockoutDuplicate($validated, $match);
+        if ($dupError) {
+            return response()->json(['message' => $dupError], 422);
+        }
 
         $this->ensureLapanganFree(
             $validated['lapangan'] ?? $match->lapangan,
@@ -66,6 +73,7 @@ class TournamentMatchController extends Controller
         );
 
         $match->update($validated);
+        \App\Events\MatchUpdated::dispatch($match->fresh());
 
         return response()->json(
             ['message' => 'Pertandingan diperbarui.', 'data' => $match->load(['team1', 'team2', 'events'])]
@@ -77,10 +85,14 @@ class TournamentMatchController extends Controller
         $validated = $request->validate([
             'team1_score' => ['sometimes', 'integer', 'min:0', 'max:99'],
             'team2_score' => ['sometimes', 'integer', 'min:0', 'max:99'],
+            'penalty1' => ['nullable', 'integer', 'min:0', 'max:99', 'different:penalty2'],
+            'penalty2' => ['nullable', 'integer', 'min:0', 'max:99'],
             'status' => ['sometimes', 'in:scheduled,live,finished'],
+            'is_walkover' => ['sometimes', 'boolean'],
             'period' => ['nullable', 'string', 'max:20'],
             'clock' => ['nullable', 'string', 'max:10'],
         ]);
+        $validated['is_penalty'] = $this->resolveIsPenalty($validated, $match);
 
         // Koreksi manual "MM:SS" ikut menghentikan timer agar tidak berebut.
         if (array_key_exists('clock', $validated) && $validated['clock'] !== null) {
@@ -96,6 +108,7 @@ class TournamentMatchController extends Controller
         }
 
         $match->update($validated);
+        \App\Events\MatchUpdated::dispatch($match->fresh());
 
         return response()->json(
             ['message' => 'Skor live diperbarui.', 'data' => $match->fresh()->load(['team1', 'team2', 'events'])]
@@ -127,6 +140,71 @@ class TournamentMatchController extends Controller
         }
     }
 
+    /**
+     * Tolak tim ganda dalam satu ronde gugur: satu tim hanya boleh muncul
+     * sekali per round_order (sisi mana pun, laga mana pun).
+     */
+    private function rejectKnockoutDuplicate(array $validated, TournamentMatch $match): ?string
+    {
+        if ((int) ($match->round_order ?? 0) <= 0) {
+            return null;
+        }
+        $sides = [];
+        if (array_key_exists('team1_id', $validated) && $validated['team1_id']) {
+            $sides[] = (int) $validated['team1_id'];
+        }
+        if (array_key_exists('team2_id', $validated) && $validated['team2_id']) {
+            $sides[] = (int) $validated['team2_id'];
+        }
+        if (! $sides) {
+            return null;
+        }
+        $dup = TournamentMatch::where('category', $match->category)
+            ->where('round_order', $match->round_order)
+            ->where('id', '!=', $match->id)
+            ->where(function ($q) use ($sides) {
+                $q->whereIn('team1_id', $sides)->orWhereIn('team2_id', $sides);
+            })
+            ->first(['id', 'slot', 'team1_id', 'team2_id']);
+        if (! $dup) {
+            return null;
+        }
+        $teamId = in_array($dup->team1_id, $sides) ? $dup->team1_id : $dup->team2_id;
+        $name = \App\Models\Team::whereKey($teamId)->value('short_name')
+            ?? \App\Models\Team::whereKey($teamId)->value('name')
+            ?? "Tim #$teamId";
+
+        return "$name sudah terpasang di slot {$dup->slot} pada babak ini — satu tim tidak boleh tampil dua kali.";
+    }
+
+    /**
+     * Turunkan flag adu penalti: true bila kedua skor penalti terisi dan
+     * berbeda; false bila keduanya dikosongkan. Selain itu pertahankan.
+     */
+    public static function derivePenaltyFlag($p1, $p2, bool $current): bool
+    {
+        if ($p1 !== null && $p2 !== null) {
+            return $p1 !== $p2;
+        }
+        if ($p1 === null && $p2 === null) {
+            return false;
+        }
+
+        return $current;
+    }
+
+    /**
+     * Turunkan flag adu penalti: true bila kedua skor penalti terisi dan
+     * berbeda; false bila keduanya dikosongkan. Selain itu pertahankan.
+     */
+    private function resolveIsPenalty(array $validated, TournamentMatch $match): bool
+    {
+        $p1 = array_key_exists('penalty1', $validated) ? $validated['penalty1'] : $match->penalty1;
+        $p2 = array_key_exists('penalty2', $validated) ? $validated['penalty2'] : $match->penalty2;
+
+        return static::derivePenaltyFlag($p1, $p2, (bool) $match->is_penalty);
+    }
+
     private function rules(bool $sometimes = false): array
     {
         $req = $sometimes ? 'sometimes' : 'required';
@@ -142,7 +220,10 @@ class TournamentMatchController extends Controller
             'team2_id' => [$req, 'nullable', 'exists:teams,id'],
             'team1_score' => ['sometimes', 'integer', 'min:0', 'max:99'],
             'team2_score' => ['sometimes', 'integer', 'min:0', 'max:99'],
+            'penalty1' => ['nullable', 'integer', 'min:0', 'max:99', 'different:penalty2'],
+            'penalty2' => ['nullable', 'integer', 'min:0', 'max:99'],
             'status' => ['sometimes', 'in:scheduled,live,finished'],
+            'is_walkover' => ['sometimes', 'boolean'],
             'period' => ['nullable', 'string', 'max:20'],
             'clock' => ['nullable', 'string', 'max:10'],
             'round_label' => ['nullable', 'string', 'max:50'],

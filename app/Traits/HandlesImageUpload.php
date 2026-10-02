@@ -38,6 +38,9 @@ trait HandlesImageUpload
             return $file->store($directory, 'public');
         }
 
+        // PNG/GIF palette (indexed) ditolak imagewebp() → samakan ke truecolor.
+        $src = $this->toTrueColor($src);
+
         $src = $this->applyExifOrientation($src, $file->getRealPath());
 
         $w = imagesx($src);
@@ -70,15 +73,38 @@ trait HandlesImageUpload
             $src = $dst;
         }
 
+        $src = $this->toTrueColor($src);
+
         ob_start();
-        imagewebp($src, null, 82);
+        $ok = @imagewebp($src, null, 82);
         $bytes = ob_get_clean();
         imagedestroy($src);
 
+        if (! $ok || ! $bytes) {
+            // Konversi gagal (format eksotis) — simpan berkas asli, jangan 500.
+            return $file->store($directory, 'public');
+        }
+
         $path = $directory.'/'.Str::random(40).'.webp';
-        Storage::disk('public')->put($path, $bytes);
+        Storage::disk('public')->put($path, $bytes, 'public');
 
         return $path;
+    }
+
+    /**
+     * Samakan citra palette (indexed) ke truecolor + alpha agar aman
+     * untuk imagecopyresampled/imagewebp. imagecrop bisa mengembalikan
+     * palette, jadi dipanggil ulang tepat sebelum encode.
+     */
+    private function toTrueColor($img)
+    {
+        if (function_exists('imageistruecolor') && ! imageistruecolor($img)) {
+            imagepalettetotruecolor($img);
+            imagealphablending($img, false);
+            imagesavealpha($img, true);
+        }
+
+        return $img;
     }
 
     private function applyExifOrientation($img, string $path)
@@ -132,7 +158,10 @@ trait HandlesImageUpload
 
     protected function deleteImage(?string $path): void
     {
-        if ($path && Storage::disk('public')->exists($path)) {
+        // Hapus langsung tanpa exists(): HEAD di endpoint S3 ini tidak stabil
+        // (sesekali 403 pada objek yang ada) sehingga cek eksistensi bisa
+        // menghalangi penghapusan dan meninggalkan berkas yatim.
+        if ($path) {
             Storage::disk('public')->delete($path);
         }
     }
@@ -143,6 +172,6 @@ trait HandlesImageUpload
             return null;
         }
 
-        return asset('storage/'.ltrim($path, '/'));
+        return Storage::disk('public')->url($path);
     }
 }

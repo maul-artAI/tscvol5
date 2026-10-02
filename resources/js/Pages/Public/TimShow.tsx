@@ -1,6 +1,7 @@
 
 import BackButton from "../../Components/BackButton";
 import PublicLayout from "../../Layouts/PublicLayout";
+import Reveal from "../../Components/Reveal";
 import type { Team, TournamentMatch } from "../../lib/api";
 
 type Player = {
@@ -31,6 +32,7 @@ export default function TimDetailPage({ team, matches }: { team: TeamDetail; mat
     <PublicLayout>
     <main className="min-h-screen bg-dark text-white">
       <div className="max-w-[900px] mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <Reveal>
         <BackButton href="/tim" label="Semua tim" />
 
         <div className="flex items-center gap-4 mt-4">
@@ -49,7 +51,9 @@ export default function TimDetailPage({ team, matches }: { team: TeamDetail; mat
           </div>
         </div>
         {team.description && <p className="text-sm text-gray-300 mt-4 leading-relaxed">{team.description}</p>}
+        </Reveal>
 
+        <Reveal delay={120}>
         <h2 className="font-display italic font-bold text-xl uppercase mt-8 mb-3">
           <span className="text-brand">●</span> Skuad ({team.players?.length || 0})
         </h2>
@@ -74,7 +78,9 @@ export default function TimDetailPage({ team, matches }: { team: TeamDetail; mat
             ))}
           </div>
         )}
+        </Reveal>
 
+        <Reveal delay={200}>
         <h2 className="font-display italic font-bold text-xl uppercase mt-8 mb-3">
           <span className="text-brand">●</span> Jadwal Berikutnya
         </h2>
@@ -103,6 +109,7 @@ export default function TimDetailPage({ team, matches }: { team: TeamDetail; mat
             })}
           </div>
         )}
+        </Reveal>
       </div>
     </main>
     </PublicLayout>

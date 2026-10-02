@@ -10,7 +10,7 @@ export default function Login({ status }: { status?: string }) {
 
     const submit: FormEventHandler = (e) => {
         e.preventDefault();
-        post('/login', {
+        post('/rahasiabosku', {
             onFinish: () => reset('password'),
         });
     };
@@ -24,7 +24,7 @@ export default function Login({ status }: { status?: string }) {
                         <img src="/tsclogo.png" alt="TSC" className="w-11 h-11 rounded-lg object-cover" />
                         <div className="leading-tight">
                             <div className="font-display font-bold text-lg italic">ADMIN PANEL</div>
-                            <div className="text-brand text-[11px] font-bold tracking-widest">FUTSAL CUP VOL V</div>
+                            <div className="text-brand text-[11px] font-bold tracking-widest">CUP VOL V</div>
                         </div>
                     </div>
 

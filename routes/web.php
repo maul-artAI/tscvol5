@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Api\V1\BracketController;
+use App\Http\Controllers\Api\V1\GalleryController;
 use App\Http\Controllers\Api\V1\LandingController;
 use App\Http\Controllers\Api\V1\MatchClockController;
 use App\Http\Controllers\Api\V1\MatchEventController;
@@ -30,6 +31,8 @@ Route::get('/tim', [PublicPageController::class, 'tim'])->name('tim.index');
 Route::get('/tim/{team}', [PublicPageController::class, 'timShow'])->name('tim.show');
 Route::get('/berita', [PublicPageController::class, 'berita'])->name('berita.index');
 Route::get('/berita/{slug}', [PublicPageController::class, 'beritaShow'])->name('berita.show');
+Route::get('/galeri', [PublicPageController::class, 'galeri'])->name('galeri');
+Route::get('/galeri/{slug}', [PublicPageController::class, 'galeriShow'])->name('galeri.show');
 Route::get('/tentang', [PublicPageController::class, 'tentang'])->name('tentang');
 Route::get('/bagan', [PublicPageController::class, 'bagan'])->name('bagan');
 Route::get('/statistik', [PublicPageController::class, 'statistik'])->name('statistik');
@@ -51,6 +54,11 @@ Route::get('/matches/{match}/report', [MatchReportController::class, 'show'])->n
 Route::middleware('auth')->prefix('admin')->name('admin.')->group(function () {
     Route::get('/', [AdminPageController::class, 'dashboard'])->name('dashboard');
     Route::get('/news', [AdminPageController::class, 'news'])->name('news');
+    Route::get('/gallery', [AdminPageController::class, 'gallery'])->name('gallery');
+    Route::get('/gallery/create', [AdminPageController::class, 'galleryCreate'])->name('gallery.create');
+    Route::get('/gallery/{slug}', [AdminPageController::class, 'galleryShow'])->name('gallery.show');
+    Route::get('/news/create', [AdminPageController::class, 'newsCreate'])->name('news.create');
+    Route::get('/news/{news}/edit', [AdminPageController::class, 'newsEdit'])->name('news.edit');
 
     Route::middleware('role:admin,operator')->group(function () {
         Route::get('/live', [AdminPageController::class, 'live'])->name('live');
@@ -77,8 +85,12 @@ Route::middleware('auth')->prefix('api/v1')->group(function () {
         return request()->user()->only(['id', 'name', 'email', 'role']);
     });
 
-    // Pubdok: hanya berita.
+    // Pubdok: berita + galeri.
     Route::middleware('role:admin,operator,pubdok')->group(function () {
+        Route::post('/news/images', [NewsController::class, 'images']);
+        Route::post('/gallery', [GalleryController::class, 'store']);
+        Route::delete('/gallery/{gallery}', [GalleryController::class, 'destroy']);
+        Route::delete('/gallery/albums/{album}', [GalleryController::class, 'destroyAlbum']);
         Route::post('/news', [NewsController::class, 'store']);
         Route::put('/news/{news}', [NewsController::class, 'update']);
         Route::post('/news/{news}', [NewsController::class, 'update']);
@@ -106,6 +118,7 @@ Route::middleware('auth')->prefix('api/v1')->group(function () {
     Route::post('/players/{player}', [PlayerController::class, 'update']);
     Route::delete('/players/{player}', [PlayerController::class, 'destroy']);
     Route::put('/settings', [SettingController::class, 'update']);
+    Route::post('/settings', [SettingController::class, 'update']); // alias multipart (PHP tak mem-parsing body PUT)
     Route::post('/bracket/seed-from-groups', [BracketController::class, 'seedFromGroups']);
     });
 

@@ -7,11 +7,26 @@ use App\Models\News;
 use App\Traits\HandlesImageUpload;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
 class NewsController extends Controller
 {
     use HandlesImageUpload;
+
+    /** Unggah gambar isi berita (drag-drop di editor) → URL publik. */
+    public function images(Request $request): JsonResponse
+    {
+        $request->validate([
+            'image' => ['required', 'image', 'mimes:jpg,jpeg,png,webp', 'max:8192'],
+        ]);
+
+        $path = $this->storeWebp($request->file('image'), 'news-inline', 1280, null);
+
+        return response()->json([
+            'url' => Storage::disk('public')->url($path),
+        ], 201);
+    }
     public function index(Request $request): JsonResponse
     {
         $news = News::published()

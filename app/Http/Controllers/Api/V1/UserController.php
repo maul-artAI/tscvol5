@@ -85,8 +85,8 @@ class UserController extends Controller
             return response()->json(['message' => 'Tidak bisa menghapus akun sendiri.'], 422);
         }
 
-        if ($user->role === 'admin' && User::where('role', 'admin')->count() <= 1) {
-            return response()->json(['message' => 'Tidak bisa menghapus satu-satunya admin.'], 422);
+        if ($user->role === 'admin') {
+            return response()->json(['message' => 'Akun admin tidak bisa dihapus.'], 422);
         }
 
         $user->delete();

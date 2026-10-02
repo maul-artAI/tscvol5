@@ -7,6 +7,9 @@ export type BracketMatch = {
   slot?: string | null;
   lapangan?: string | null;
   status: string;
+  match_date?: string | null;
+  kickoff?: string | null;
+  round_label?: string | null;
   team1_score: number;
   team2_score: number;
   period?: string | null;
@@ -15,13 +18,17 @@ export type BracketMatch = {
   team2?: Team | null;
   winner_next_match_id?: number | null;
   winner_next_side?: string | null;
+  is_walkover?: boolean;
+  penalty1?: number | null;
+  penalty2?: number | null;
+  is_penalty?: boolean;
 };
 
 export type BracketRound = { order: number; label: string; matches: BracketMatch[] };
 
 type Line = { d: string; hot: boolean };
 
-function TeamRow({ team, score, won }: { team?: Team | null; score: number; won: boolean }) {
+function TeamRow({ team, score, won, pen, showPen }: { team?: Team | null; score: number; won: boolean; pen?: number | null; showPen?: boolean }) {
   return (
     <div className={`flex items-center justify-between gap-2 px-3 py-2 ${won ? "bg-white/5" : ""}`}>
       <span className={`flex items-center gap-2 min-w-0 text-[13px] ${won ? "font-bold text-white" : "text-gray-300"}`}>
@@ -32,8 +39,14 @@ function TeamRow({ team, score, won }: { team?: Team | null; score: number; won:
         )}
         <span className="truncate">{team ? team.short_name || team.name : "TBD"}</span>
         {won && <i className="fa-solid fa-check text-green-400 text-xs shrink-0"></i>}
+        {showPen && <span className="text-[9px] font-bold bg-white/10 text-gray-300 px-1.5 py-0.5 rounded shrink-0">PEN</span>}
       </span>
-      <span className={`font-display italic font-bold tabular-nums ${won ? "text-white" : "text-muted"}`}>{score}</span>
+      <span className={`font-display italic font-bold tabular-nums ${won ? "text-white" : "text-muted"}`}>
+        {score}
+        {showPen && pen !== null && pen !== undefined && (
+          <span className="text-amber-400 text-sm"> ({pen})</span>
+        )}
+      </span>
     </div>
   );
 }
@@ -43,14 +56,38 @@ function TeamRowOrCustom({
   team,
   score,
   won,
+  pen,
+  showPen,
 }: {
   custom?: React.ReactNode;
   team?: Team | null;
   score: number;
   won: boolean;
+  pen?: number | null;
+  showPen?: boolean;
 }) {
   if (custom !== undefined) return <>{custom}</>;
-  return <TeamRow team={team} score={score} won={won} />;
+  return <TeamRow team={team} score={score} won={won} pen={pen} showPen={showPen} />;
+}
+
+/** 0 = belum ada pemenang, 1 = tim 1, 2 = tim 2 (termasuk via penalti). */
+export function winnerOf(m: BracketMatch): 0 | 1 | 2 {
+  if (m.status !== "finished") return 0;
+  if (m.team1_score !== m.team2_score) return m.team1_score > m.team2_score ? 1 : 2;
+  if (m.penalty1 != null && m.penalty2 != null && m.penalty1 !== m.penalty2) {
+    return m.penalty1 > m.penalty2 ? 1 : 2;
+  }
+  return 0;
+}
+
+export function isPenaltyDecided(m: BracketMatch): boolean {
+  return (
+    m.status === "finished" &&
+    m.team1_score === m.team2_score &&
+    m.penalty1 != null &&
+    m.penalty2 != null &&
+    m.penalty1 !== m.penalty2
+  );
 }
 
 export default function BracketDiagram({
@@ -154,7 +191,9 @@ export default function BracketDiagram({
             </h2>
             <div className="flex-1 flex flex-col justify-around gap-6">
               {r.matches.map((m) => {
-                const decided = m.status === "finished" && m.team1_score !== m.team2_score;
+                const w = winnerOf(m);
+                const decided = w !== 0;
+                const pen = isPenaltyDecided(m);
                 return (
                   <div
                     key={m.id}
@@ -169,22 +208,29 @@ export default function BracketDiagram({
                       {m.status === "live" && (
                         <span className="text-[10px] font-bold bg-brand px-2 py-0.5 rounded live-glow">LIVE</span>
                       )}
+                      {m.is_walkover && (
+                        <span className="text-[10px] font-bold bg-amber-500/20 text-amber-400 px-2 py-0.5 rounded">WO</span>
+                      )}
                       {m.status === "finished" && (
                         <span className="text-[10px] font-bold text-muted">FT</span>
                       )}
                     </div>
                     <TeamRowOrCustom
-                      custom={renderTeamRow?.(m, "team1", m.team1, m.team1_score, decided && m.team1_score > m.team2_score)}
+                      custom={renderTeamRow?.(m, "team1", m.team1, m.team1_score, w === 1)}
                       team={m.team1}
                       score={m.team1_score}
-                      won={decided && m.team1_score > m.team2_score}
+                      won={w === 1}
+                      pen={m.penalty1}
+                      showPen={pen}
                     />
                     <div className="border-t border-white/5" />
                     <TeamRowOrCustom
-                      custom={renderTeamRow?.(m, "team2", m.team2, m.team2_score, decided && m.team2_score > m.team1_score)}
+                      custom={renderTeamRow?.(m, "team2", m.team2, m.team2_score, w === 2)}
                       team={m.team2}
                       score={m.team2_score}
-                      won={decided && m.team2_score > m.team1_score}
+                      won={w === 2}
+                      pen={m.penalty2}
+                      showPen={pen}
                     />
                     {renderCardFooter?.(m)}
                     {m.status === "live" && m.clock_display && (

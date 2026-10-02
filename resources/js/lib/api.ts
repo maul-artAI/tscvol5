@@ -19,8 +19,8 @@ export async function apiFetch<T>(path: string, opts: ApiOptions = {}): Promise<
         return res.data as T;
     } catch (err: unknown) {
         if (axios.isAxiosError(err)) {
-            if (err.response?.status === 401 && !window.location.pathname.startsWith('/login')) {
-                window.location.href = '/login';
+            if (err.response?.status === 401 && !window.location.pathname.startsWith('/rahasiabosku')) {
+                window.location.href = '/rahasiabosku';
             }
             const d = err.response?.data as { message?: string; errors?: Record<string, string[]> } | undefined;
             const msg =
@@ -56,8 +56,9 @@ export type MatchEvent = {
     match_id: number;
     minute: number;
     minute_label?: string;
+    period?: string | null;
     team_side: 'team1' | 'team2';
-    type: 'goal' | 'yellow_card' | 'red_card' | 'foul';
+    type: 'goal' | 'yellow_card' | 'red_card' | 'foul' | 'shootout_goal' | 'shootout_miss' | 'own_goal' | 'wo_call';
     player_name: string;
     assist_name?: string | null;
 };
@@ -74,6 +75,10 @@ export type TournamentMatch = {
     team2_id?: number | null;
     team1_score: number;
     team2_score: number;
+    penalty1?: number | null;
+    penalty2?: number | null;
+    is_penalty?: boolean;
+    is_walkover?: boolean;
     status: 'scheduled' | 'live' | 'finished';
     period?: string | null;
     clock?: string | null;

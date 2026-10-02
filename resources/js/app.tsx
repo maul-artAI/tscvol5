@@ -4,8 +4,9 @@ import './bootstrap';
 import { createInertiaApp } from '@inertiajs/react';
 import { resolvePageComponent } from 'laravel-vite-plugin/inertia-helpers';
 import { createRoot } from 'react-dom/client';
+import { FeedbackProvider } from './Components/Feedback';
 
-const appName = import.meta.env.VITE_APP_NAME || 'TSC Futsal Cup';
+const appName = import.meta.env.VITE_APP_NAME || 'TSC Cup';
 
 createInertiaApp({
     title: (title) => (title ? `${title} | ${appName}` : appName),
@@ -17,7 +18,13 @@ createInertiaApp({
     setup({ el, App, props }) {
         const root = createRoot(el);
 
-        root.render(<App {...props} />);
+        // Provider di root agar useFeedback() bisa dipakai page mana pun
+        // (page me-render AdminLayout sebagai anak, bukan sebaliknya).
+        root.render(
+            <FeedbackProvider>
+                <App {...props} />
+            </FeedbackProvider>
+        );
     },
     progress: {
         color: '#4B5563',

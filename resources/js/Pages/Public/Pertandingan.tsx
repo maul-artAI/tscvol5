@@ -6,13 +6,17 @@ import type { MatchEvent, TournamentMatch } from "../../lib/api";
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"];
 
 function EvIcon({ type }: { type: string }) {
-  if (type === "goal") return <i className="fa-regular fa-futbol text-white"></i>;
+  if (type === "goal" || type === "shootout_goal") return <i className="fa-regular fa-futbol text-white"></i>;
+  if (type === "wo_call") return <i className="fa-solid fa-bullhorn text-amber-400"></i>;
+  if (type === "own_goal") return <i className="fa-regular fa-futbol text-amber-400"></i>;
+  if (type === "shootout_miss") return <i className="fa-solid fa-circle-xmark text-muted"></i>;
   if (type === "yellow_card") return <i className="fa-solid fa-square text-yellow-400"></i>;
   if (type === "foul") return <i className="fa-solid fa-whistle text-gray-400"></i>;
-  return <i className="fa-solid fa-square text-red-500"></i>;
+  if (type === "red_card") return <i className="fa-solid fa-square text-red-500"></i>;
+  return <i className="fa-solid fa-circle text-muted"></i>;
 }
 
-const TYPE_LABEL: Record<string, string> = { goal: "Gol", yellow_card: "Kartu kuning", red_card: "Kartu merah", foul: "Pelanggaran" };
+const TYPE_LABEL: Record<string, string> = { goal: "Gol", own_goal: "Own Goal", shootout_goal: "Gol Penalti", shootout_miss: "Penalti Gagal", wo_call: "Panggilan WO", yellow_card: "Kartu kuning", red_card: "Kartu merah", foul: "Pelanggaran" };
 
 export default function PertandinganDetailPage({ match: m }: { match: TournamentMatch }) {
 

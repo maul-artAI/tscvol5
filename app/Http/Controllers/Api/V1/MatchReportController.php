@@ -13,7 +13,7 @@ class MatchReportController extends Controller
     {
         $match->load(['team1', 'team2', 'events']);
 
-        $types = ['goal', 'yellow_card', 'red_card', 'foul'];
+        $types = ['goal', 'yellow_card', 'red_card', 'foul', 'shootout_goal', 'shootout_miss', 'own_goal', 'wo_call'];
         $summary = ['team1' => array_fill_keys($types, 0), 'team2' => array_fill_keys($types, 0)];
 
         foreach ($match->events as $e) {
@@ -22,7 +22,7 @@ class MatchReportController extends Controller
             }
         }
 
-        $events = $match->events->sortBy('minute')->values();
+        $events = $match->events->reject(fn ($e) => $e->type === 'foul')->sortBy('minute')->values();
 
         $pdf = Pdf::loadView('reports.berita-acara', [
             'match' => $match,
@@ -33,6 +33,10 @@ class MatchReportController extends Controller
                 'yellow_card' => 'Kartu Kuning',
                 'red_card' => 'Kartu Merah',
                 'foul' => 'Pelanggaran',
+                'shootout_goal' => 'Gol Penalti',
+                'shootout_miss' => 'Penalti Gagal',
+                'own_goal' => 'Own Goal',
+                'wo_call' => 'Panggilan WO',
             ],
             'statusLabel' => [
                 'scheduled' => 'Terjadwal',
@@ -45,8 +49,8 @@ class MatchReportController extends Controller
             'stelkPath' => public_path('stelk.png'),
         ])->setPaper('a4', 'portrait');
 
-        $t1 = Str::slug($match->team1->short_name ?? 'tim-1');
-        $t2 = Str::slug($match->team2->short_name ?? 'tim-2');
+        $t1 = Str::slug($match->team1->short_name ?: $match->team1->name ?? 'tim-1');
+        $t2 = Str::slug($match->team2->short_name ?: $match->team2->name ?? 'tim-2');
 
         return $pdf->download("berita-acara-{$t1}-vs-{$t2}.pdf");
     }

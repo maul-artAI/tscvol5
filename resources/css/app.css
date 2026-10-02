@@ -48,6 +48,33 @@
   box-shadow: 0 0 15px rgba(220, 38, 38, 0.5);
 }
 
+/* Entrance animations (0.4–0.6s ease-out, hormati hemat gerak) */
+.reveal {
+  opacity: 0;
+  transform: translateY(20px);
+  transition:
+    opacity 0.5s ease-out,
+    transform 0.5s ease-out;
+  will-change: opacity, transform;
+}
+.reveal-r {
+  transform: translateX(24px);
+}
+.reveal-scale {
+  transform: scale(0.95);
+}
+.reveal.in {
+  opacity: 1;
+  transform: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .reveal {
+    opacity: 1 !important;
+    transform: none !important;
+    transition: none !important;
+  }
+}
+
 /* Isi berita (HTML dari editor) */
 .rich-body p {
   margin: 0.75em 0;

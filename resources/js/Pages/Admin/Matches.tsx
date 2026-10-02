@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "@inertiajs/react";
 import { apiFetch, revalidateSite, type Team, type TournamentMatch } from "../../lib/api";
+import { useFeedback } from "../../Components/Feedback";
 import AdminLayout from "../../Layouts/AdminLayout";
 
 type Form = {
@@ -39,11 +40,21 @@ const EMPTY: Form = {
 };
 
 const STATUS: Record<string, string> = { scheduled: "Terjadwal", live: "Live", finished: "Selesai" };
+const MONTHS_ID = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des" ];
+
+function fmtTanggal(iso?: string | null): string {
+  const s = (iso || "").slice(0, 10);
+  if (!s) return "-";
+  const d = new Date(`${s}T00:00:00`);
+  if (isNaN(+d)) return s;
+  return `${d.getDate()} ${MONTHS_ID[d.getMonth()]} ${d.getFullYear()}`;
+}
 const PER_PAGE = 15;
 
-export default function AdminMatchesPage() {
-  const [matches, setMatches] = useState<TournamentMatch[]>([]);
-  const [teams, setTeams] = useState<Team[]>([]);
+export default function AdminMatchesPage({ initialMatches, initialTeams }: { initialMatches?: TournamentMatch[]; initialTeams?: Team[] }) {
+  const { toast, confirmDlg } = useFeedback();
+  const [matches, setMatches] = useState<TournamentMatch[]>(initialMatches ?? []);
+  const [teams, setTeams] = useState<Team[]>(initialTeams ?? []);
   const [q, setQ] = useState("");
   const [fStatus, setFStatus] = useState("");
   const [fCat, setFCat] = useState("");
@@ -51,7 +62,6 @@ export default function AdminMatchesPage() {
   const [page, setPage] = useState(1);
   const [drawer, setDrawer] = useState<null | { mode: "add" } | { mode: "edit"; match: TournamentMatch }>(null);
   const [form, setForm] = useState<Form>(EMPTY);
-  const [msg, setMsg] = useState("");
   const [saving, setSaving] = useState(false);
 
   async function load() {
@@ -64,6 +74,7 @@ export default function AdminMatchesPage() {
   }
 
   useEffect(() => {
+    if (initialMatches !== undefined) return;
     load().catch(() => {});
   }, []);
 
@@ -115,27 +126,24 @@ export default function AdminMatchesPage() {
 
   function openAdd(prefill?: Partial<Form>) {
     setForm({ ...EMPTY, ...prefill });
-    setMsg("");
     setDrawer({ mode: "add" });
   }
 
   function openEdit(m: TournamentMatch) {
     setForm(toForm(m));
-    setMsg("");
     setDrawer({ mode: "edit", match: m });
   }
 
   function duplicate(m: TournamentMatch) {
     const f = toForm(m);
     setForm({ ...f, status: "scheduled" });
-    setMsg(`Duplikat dari laga #${m.id} — sesuaikan tanggal/jam lalu simpan.`);
+    toast.success(`Duplikat dari laga #${m.id} — sesuaikan tanggal/jam lalu simpan.`);
     setDrawer({ mode: "add" });
   }
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setSaving(true);
-    setMsg("");
     try {
       const payload = {
         ...form,
@@ -147,16 +155,16 @@ export default function AdminMatchesPage() {
       };
       if (drawer?.mode === "edit") {
         await apiFetch(`/matches/${drawer.match.id}`, { method: "PUT", body: payload });
-        setMsg("Jadwal diperbarui.");
+        toast.success("Jadwal berhasil diperbarui.");
       } else {
         await apiFetch("/matches", { method: "POST", body: payload });
-        setMsg("Jadwal ditambahkan.");
+        toast.success("Jadwal berhasil ditambahkan.");
       }
       setDrawer(null);
       revalidateSite(["/", "/jadwal", "/klasemen", "/bagan"]);
       await load();
     } catch (err) {
-      setMsg(err instanceof Error ? err.message : "Gagal menyimpan.");
+      toast.error(err instanceof Error ? err.message : "Gagal menyimpan.");
     } finally {
       setSaving(false);
     }
@@ -164,8 +172,12 @@ export default function AdminMatchesPage() {
 
   async function quickStatus(m: TournamentMatch, status: string) {
     const label = status === "live" ? "mulai live" : "selesaikan";
-    if (!confirm(`${label === "mulai live" ? "Mulai live" : "Selesaikan"} laga ${m.team1?.short_name} vs ${m.team2?.short_name}?`)) return;
-    setMsg("");
+    const okStatus = await confirmDlg({
+      title: `${label === "mulai live" ? "Mulai live" : "Selesaikan"} laga ini?`,
+      detail: `${m.team1?.name || "?"} vs ${m.team2?.name || "?"} — ${m.stage || ""} ${m.match_date || ""} ${m.kickoff || ""}`.trim(),
+      confirmLabel: label === "mulai live" ? "Ya, Live" : "Ya, Selesaikan",
+    });
+    if (!okStatus) return;
     try {
       if (status === "live") {
         await apiFetch(`/matches/${m.id}/clock/start`, { method: "POST" }).catch(() => {});
@@ -176,17 +188,26 @@ export default function AdminMatchesPage() {
       });
       revalidateSite(["/", "/jadwal", "/klasemen", "/bagan"]);
       await load();
-      setMsg(status === "live" ? "Laga live." : "Laga selesai.");
+      toast.success(status === "live" ? "Laga live." : "Laga selesai.");
     } catch (err) {
-      setMsg(err instanceof Error ? err.message : "Gagal mengubah status.");
+      toast.error(err instanceof Error ? err.message : "Gagal mengubah status.");
     }
   }
 
   async function remove(m: TournamentMatch) {
-    if (!confirm(`Hapus laga ${m.team1?.name} vs ${m.team2?.name}?`)) return;
-    await apiFetch(`/matches/${m.id}`, { method: "DELETE" });
-    revalidateSite(["/", "/jadwal", "/klasemen", "/bagan"]);
-    await load();
+    const ok = await confirmDlg({
+      title: "Hapus Data Ini?",
+      detail: `Laga ${m.team1?.name || "?"} vs ${m.team2?.name || "?"} (${m.stage || ""} ${m.match_date || ""} ${m.kickoff || ""}) beserta seluruh eventnya akan dihapus permanen.`.trim(),
+    });
+    if (!ok) return;
+    try {
+      await apiFetch(`/matches/${m.id}`, { method: "DELETE" });
+      revalidateSite(["/", "/jadwal", "/klasemen", "/bagan"]);
+      await load();
+      toast.success("Data berhasil dihapus.");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Gagal menghapus.");
+    }
   }
 
   const input =
@@ -215,8 +236,6 @@ export default function AdminMatchesPage() {
       <p className="text-sm text-muted mb-5">
         {filtered.length} dari {matches.length} laga • {liveCount} live sekarang.
       </p>
-
-      {msg && !drawer && <p className="mb-4 text-xs bg-white/5 border border-border rounded px-3 py-2">{msg}</p>}
 
       {/* Toolbar */}
       <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 mb-4">
@@ -282,7 +301,7 @@ export default function AdminMatchesPage() {
             {shown.map((m) => (
               <tr key={m.id}>
                 <td className="p-3 text-muted tabular-nums whitespace-nowrap">
-                  {m.match_date?.slice(0, 10)}
+                  {fmtTanggal(m.match_date)}
                   <span className="block text-[11px]">{(m.kickoff || "").slice(0, 5)}</span>
                 </td>
                 <td className="p-3 font-medium">
@@ -327,7 +346,7 @@ export default function AdminMatchesPage() {
                     status: m.status, round_label: m.round_label || "", round_order: String(m.round_order ?? 0),
                     slot: m.slot || "", winner_next_match_id: m.winner_next_match_id ? String(m.winner_next_match_id) : "",
                     winner_next_side: m.winner_next_side || "team1",
-                  }); setMsg(""); setDrawer({ mode: "edit", match: m }); }} title="Ubah" className="text-muted hover:text-white text-sm mr-2">
+                  }); setDrawer({ mode: "edit", match: m }); }} title="Ubah" className="text-muted hover:text-white text-sm mr-2">
                     <i className="fa-solid fa-pen"></i>
                   </button>
                   <button onClick={() => remove(m)} title="Hapus" className="text-muted hover:text-brand text-sm">
@@ -363,8 +382,6 @@ export default function AdminMatchesPage() {
               </button>
             </div>
             <p className="text-xs text-muted mb-4">Esc untuk tutup tanpa menyimpan.</p>
-
-            {msg && <p className="mb-3 text-xs bg-white/5 border border-border rounded px-3 py-2">{msg}</p>}
 
             <form onSubmit={submit} className="grid gap-3">
               <div className="grid grid-cols-2 gap-3">

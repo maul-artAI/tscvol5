@@ -29,10 +29,20 @@ class HandleInertiaRequests extends Middleware
      */
     public function share(Request $request): array
     {
+        // Logo situs dibagikan server-side agar navbar langsung tampil benar
+        // tanpa kilatan logo default (tanpa fetch susulan di client).
+        $logos = \App\Models\Setting::whereIn('key', ['logo_tsc', 'logo_smk'])
+            ->pluck('value', 'key')
+            ->all();
+
         return [
             ...parent::share($request),
             'auth' => [
                 'user' => $request->user(),
+            ],
+            'siteLogos' => [
+                'tsc' => $logos['logo_tsc'] ?? null,
+                'smk' => $logos['logo_smk'] ?? null,
             ],
         ];
     }

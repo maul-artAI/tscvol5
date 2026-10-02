@@ -82,6 +82,18 @@ class PublicPageController extends Controller
         return Inertia::render('Public/BeritaShow', ['item' => $item->append('cover_url')]);
     }
 
+    public function galeri(): Response
+    {
+        return Inertia::render('Public/Galeri');
+    }
+
+    public function galeriShow(string $slug): Response
+    {
+        \App\Models\GalleryAlbum::where('slug', $slug)->firstOrFail();
+
+        return Inertia::render('Public/GaleriShow', ['slug' => $slug]);
+    }
+
     public function tentang(): Response
     {
         return Inertia::render('Public/Tentang', [

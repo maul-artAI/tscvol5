@@ -1,6 +1,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { apiFetch, revalidateSite, type Team } from "../../lib/api";
+import { useFeedback } from "../../Components/Feedback";
 import AdminLayout from "../../Layouts/AdminLayout";
 
 const GROUPS = ["A", "B", "C", "D", "E", "F", "G", "H"];
@@ -15,10 +16,11 @@ type Form = {
   is_active: boolean;
 };
 
-const EMPTY: Form = { name: "", short_name: "", category: "SMA", group: "A", description: "", is_active: true };
+const EMPTY: Form = { name: "", short_name: "", category: "SMA", group: "", description: "", is_active: true };
 
-export default function AdminTeamsPage() {
-  const [teams, setTeams] = useState<Team[]>([]);
+export default function AdminTeamsPage({ initialTeams }: { initialTeams?: Team[] }) {
+  const { toast, confirmDlg } = useFeedback();
+  const [teams, setTeams] = useState<Team[]>(initialTeams ?? []);
   const [q, setQ] = useState("");
   const [fCat, setFCat] = useState("");
   const [fGroup, setFGroup] = useState("");
@@ -29,7 +31,6 @@ export default function AdminTeamsPage() {
   const [logo, setLogo] = useState<File | null>(null);
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
   const [removeLogo, setRemoveLogo] = useState(false);
-  const [msg, setMsg] = useState("");
   const [saving, setSaving] = useState(false);
 
   async function load() {
@@ -38,6 +39,7 @@ export default function AdminTeamsPage() {
   }
 
   useEffect(() => {
+    if (initialTeams !== undefined) return;
     load().catch(() => {});
   }, []);
 
@@ -85,7 +87,6 @@ export default function AdminTeamsPage() {
     setLogo(null);
     setLogoPreview(null);
     setRemoveLogo(false);
-    setMsg("");
     setDrawer({ mode: "add" });
   }
 
@@ -94,27 +95,25 @@ export default function AdminTeamsPage() {
       name: t.name,
       short_name: t.short_name || "",
       category: t.category,
-      group: (t.group_name || "").replace(/^Grup\s+/i, "") || "A",
+      group: (t.group_name || "").replace(/^Grup\s+/i, "") || "",
       description: t.description || "",
       is_active: t.is_active,
     });
     setLogo(null);
     setLogoPreview(t.logo_url || null);
     setRemoveLogo(false);
-    setMsg("");
     setDrawer({ mode: "edit", team: t });
   }
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setSaving(true);
-    setMsg("");
     try {
       const fd = new FormData();
       fd.append("name", form.name.trim());
       fd.append("short_name", form.short_name.trim());
       fd.append("category", form.category);
-      fd.append("group_name", `Grup ${form.group}`);
+      fd.append("group_name", form.group ? `Grup ${form.group}` : "");
       fd.append("description", form.description.trim());
       fd.append("is_active", form.is_active ? "1" : "0");
       if (logo) fd.append("logo", logo);
@@ -122,16 +121,16 @@ export default function AdminTeamsPage() {
 
       if (drawer?.mode === "edit") {
         await apiFetch(`/teams/${drawer.team.id}`, { method: "POST", body: fd });
-        setMsg("Tim diperbarui.");
+        toast.success("Tim berhasil diperbarui.");
       } else {
         await apiFetch("/teams", { method: "POST", body: fd });
-        setMsg("Tim ditambahkan.");
+        toast.success("Tim berhasil ditambahkan.");
       }
       setDrawer(null);
       revalidateSite(["/tim", "/", "/klasemen", "/bagan"]);
       await load();
     } catch (err) {
-      setMsg(err instanceof Error ? err.message : "Gagal menyimpan.");
+      toast.error(err instanceof Error ? err.message : "Gagal menyimpan.");
     } finally {
       setSaving(false);
     }
@@ -146,10 +145,19 @@ export default function AdminTeamsPage() {
   }
 
   async function remove(t: Team) {
-    if (!confirm(`Hapus ${t.name}? Logo ikut terhapus.`)) return;
-    await apiFetch(`/teams/${t.id}`, { method: "DELETE" });
-    revalidateSite(["/tim", "/", "/klasemen", "/bagan"]);
-    await load();
+    const ok = await confirmDlg({
+      title: "Hapus Data Ini?",
+      detail: `Tim "${t.name}" beserta logo dan seluruh pemainnya akan dihapus permanen.`,
+    });
+    if (!ok) return;
+    try {
+      await apiFetch(`/teams/${t.id}`, { method: "DELETE" });
+      revalidateSite(["/tim", "/", "/klasemen", "/bagan"]);
+      await load();
+      toast.success("Data berhasil dihapus.");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Gagal menghapus.");
+    }
   }
 
   const input =
@@ -171,7 +179,6 @@ export default function AdminTeamsPage() {
         {filtered.length} dari {teams.length} tim • klik kartu untuk ubah.
       </p>
 
-      {msg && !drawer && <p className="mb-4 text-xs bg-white/5 border border-border rounded px-3 py-2">{msg}</p>}
 
       {/* Toolbar */}
       <div className="grid sm:grid-cols-4 gap-2 mb-4">
@@ -290,7 +297,6 @@ export default function AdminTeamsPage() {
             </div>
             <p className="text-xs text-muted mb-4">Esc untuk tutup tanpa menyimpan.</p>
 
-            {msg && <p className="mb-3 text-xs bg-white/5 border border-border rounded px-3 py-2">{msg}</p>}
 
             <form onSubmit={submit} className="grid gap-3">
               {/* Logo */}
@@ -340,6 +346,7 @@ export default function AdminTeamsPage() {
                 <div>
                   <label className="block text-xs font-semibold text-muted mb-1">GRUP</label>
                   <select className={input} value={form.group} onChange={(e) => setForm({ ...form, group: e.target.value })}>
+                    <option value="">Belum ada grup</option>
                     {GROUPS.map((g) => (
                       <option key={g} value={g}>Grup {g}</option>
                     ))}

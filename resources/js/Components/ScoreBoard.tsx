@@ -2,6 +2,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "@inertiajs/react";
 import { apiFetch, type TournamentMatch } from "../lib/api";
+import { getEcho, mergeMatch, type LiveMatch } from "../lib/echo";
+import Reveal from "./Reveal";
 
 const DAYS = ["Min", "Sen", "Sel", "Rab", "Kam", "Jum", "Sab"];
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"];
@@ -33,10 +35,17 @@ export default function ScoreBoard({ initialMatches = [] }: { initialMatches?: T
   const [matches, setMatches] = useState<TournamentMatch[]>(initialMatches);
   const [date, setDate] = useState<string>(() => firstDate(initialMatches));
   const [filter, setFilter] = useState<Filter>("semua");
-  const [cat, setCat] = useState<"SMA" | "SMP">("SMA");
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+
+  const LIMIT = 6;
 
   useEffect(() => {
     let alive = true;
+    const echo = getEcho();
+    echo?.channel("scores").listen(".match.updated", (e: { match: LiveMatch }) => {
+      if (!alive || !e?.match?.id) return;
+      setMatches((prev) => mergeMatch(prev, e.match as TournamentMatch));
+    });
     // Data awal sudah dari server: lewati fetch pertama, langsung jadwalkan refresh.
     let skipFirst = initialMatches.length > 0;
     async function refresh() {
@@ -55,10 +64,13 @@ export default function ScoreBoard({ initialMatches = [] }: { initialMatches?: T
       }
     }
     refresh();
-    const t = setInterval(refresh, 60000);
+    const t = setInterval(() => {
+      if (!document.hidden) refresh();
+    }, 10000);
     return () => {
       alive = false;
       clearInterval(t);
+      echo?.leaveChannel("scores");
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -67,20 +79,35 @@ export default function ScoreBoard({ initialMatches = [] }: { initialMatches?: T
     () => [...new Set(matches.map((m) => (m.match_date || "").slice(0, 10)).filter(Boolean))].sort(),
     [matches]
   );
-  const rows = useMemo(
-    () =>
-      matches.filter(
+  const rowsFor = (category: "SMA" | "SMP") =>
+    matches
+      .filter(
         (m) =>
-          m.category === cat &&
+          m.category === category &&
           (!date || (m.match_date || "").slice(0, 10) === date) &&
           (filter === "semua" ||
             (filter === "upcoming" ? m.status === "scheduled" : m.status === filter))
-      ),
-    [matches, cat, date, filter]
-  );
+      )
+      .sort((a, b) => {
+        // Live teratas; terjadwal terdekat dulu; selesai terbaru dulu.
+        const rank = (s?: string) => (s === "live" ? 0 : s === "scheduled" ? 1 : 2);
+        const r = rank(a.status) - rank(b.status);
+        if (r !== 0) return r;
+        const ka = a.kickoff || "";
+        const kb = b.kickoff || "";
+        return a.status === "finished" ? kb.localeCompare(ka) : ka.localeCompare(kb);
+      });
 
   const dayIdx = dates.indexOf(date);
   const windows = dates.slice(Math.max(0, dayIdx - 2), dayIdx + 3);
+
+  const catLabel = (c: "SMA" | "SMP") => (c === "SMA" ? "SMA/SMK" : "SMP");
+
+  // Tanggal berikutnya yang punya laga kategori tsb (untuk tombol empty state).
+  const nextDateFor = (c: "SMA" | "SMP") =>
+    dates.find(
+      (d) => d > date && matches.some((m) => m.category === c && (m.match_date || "").slice(0, 10) === d)
+    ) || dates.find((d) => d > date);
 
   return (
     <section id="skor" aria-label="Skor pertandingan" className="py-12 scroll-mt-20">
@@ -126,19 +153,6 @@ export default function ScoreBoard({ initialMatches = [] }: { initialMatches?: T
         >
           ›
         </button>
-        <div className="flex gap-1 ml-2">
-          {(["SMA", "SMP"] as const).map((c) => (
-            <button
-              key={c}
-              onClick={() => setCat(c)}
-              className={`px-2.5 py-1.5 rounded-lg text-[11px] font-bold transition ${
-                cat === c ? "bg-brand text-white" : "text-muted hover:text-white"
-              }`}
-            >
-              {c}
-            </button>
-          ))}
-        </div>
       </div>
 
       {/* Filter status */}
@@ -163,26 +177,50 @@ export default function ScoreBoard({ initialMatches = [] }: { initialMatches?: T
         ))}
       </div>
 
-      {/* Daftar skor */}
-      <div>
-        {rows.length === 0 && (
-          <p className="text-xs text-muted py-6 text-center">Tidak ada laga pada filter ini.</p>
-        )}
-        {rows.map((m) => (
+      {/* Daftar skor per kategori: 2 kolom di desktop, tumpuk di mobile */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-stretch">
+      {(
+        [
+          ["SMA", "KATEGORI SMA/SMK"],
+          ["SMP", "KATEGORI SMP"],
+        ] as const
+      ).map(([c, label], idx) => {
+        const list = rowsFor(c);
+        const next = nextDateFor(c);
+        return (
+          <Reveal key={c} delay={idx * 120}>
+          <div className="mb-6 last:mb-0 lg:mb-0 bg-surface/40 border border-white/5 rounded-2xl p-4 flex flex-col h-full">
+            <h3 className="text-xs font-bold tracking-widest text-muted uppercase mb-2">{label}</h3>
+            {list.length === 0 ? (
+              <div className="flex-1 flex flex-col items-center justify-center text-center py-8 px-4 border border-dashed border-white/10 rounded-xl">
+                <i className="fa-regular fa-calendar-days text-2xl text-muted/60 mb-2"></i>
+                <p className="text-[13px] font-semibold text-white">Pertandingan kategori {catLabel(c)} belum dimulai untuk tanggal ini</p>
+                {next && (
+                  <button
+                    onClick={() => setDate(next)}
+                    className="mt-2 text-xs font-bold text-brand hover:text-white transition"
+                  >
+                    Cek Hari Berikutnya →
+                  </button>
+                )}
+              </div>
+            ) : (
+              <div className="flex-1">
+                {(expanded[c] ? list : list.slice(0, LIMIT)).map((m) => (
           <Link
             key={m.id}
             href={`/pertandingan/${m.id}`}
             className="grid grid-cols-[64px_1fr_auto] items-center gap-2 py-3 border-b border-white/5 hover:bg-white/[0.02] transition"
           >
-            <div className="text-[11px] text-muted leading-tight">
+            <div className="text-[11px] text-muted leading-tight flex flex-col items-start gap-1">
               {m.status === "live" ? (
                 <span className="text-brand font-bold">LIVE</span>
               ) : m.status === "finished" ? (
-                <>FT</>
+                <span className="bg-neutral-800 text-neutral-400 text-xs px-2 py-0.5 rounded border border-neutral-700/50 font-bold">FT</span>
               ) : (
-                <>{(m.kickoff || "").slice(0, 5)}</>
+                <span className="bg-neutral-800 text-neutral-400 text-xs px-2 py-0.5 rounded border border-neutral-700/50 font-bold tabular-nums">{(m.kickoff || "").slice(0, 5)}</span>
               )}
-              <span className="block tabular-nums">{m.lapangan?.replace("Lapangan", "Lap.")}</span>
+              <span className="bg-neutral-800 text-neutral-400 text-xs px-2 py-0.5 rounded border border-neutral-700/50 tabular-nums">{m.lapangan?.replace("Lapangan", "Lap.")}</span>
             </div>
             <div className="min-w-0">
               {[
@@ -200,7 +238,21 @@ export default function ScoreBoard({ initialMatches = [] }: { initialMatches?: T
             </div>
             <i className="fa-solid fa-chevron-right text-muted text-xs"></i>
           </Link>
-        ))}
+                ))}
+                {list.length > LIMIT && (
+                  <button
+                    onClick={() => setExpanded((e) => ({ ...e, [c]: !e[c] }))}
+                    className="w-full mt-1 text-xs font-bold text-brand hover:text-white transition py-2"
+                  >
+                    {expanded[c] ? "Tampilkan lebih sedikit ↑" : `Tampilkan semua ${list.length} laga ↓`}
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+          </Reveal>
+        );
+      })}
       </div>
     </section>
   );

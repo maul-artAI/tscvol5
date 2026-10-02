@@ -1,16 +1,20 @@
 
 import { useEffect, useState } from "react";
+import { usePage } from "@inertiajs/react";
 import { apiFetch } from "../../lib/api";
+import { useFeedback } from "../../Components/Feedback";
 import AdminLayout from "../../Layouts/AdminLayout";
 
 type Account = { id: number; name: string; email: string; role: string; created_at?: string };
 
-export default function AdminUsersPage() {
-  const [users, setUsers] = useState<Account[]>([]);
+export default function AdminUsersPage({ initialUsers }: { initialUsers?: Account[] }) {
+  const { toast, confirmDlg } = useFeedback();
+  const me = usePage().props.auth?.user as { id: number } | undefined;
+  const isProtected = (u: Account) => u.id === me?.id || u.role === "admin";
+  const [users, setUsers] = useState<Account[]>(initialUsers ?? []);
   const [forbidden, setForbidden] = useState(false);
   const [drawer, setDrawer] = useState<null | { mode: "add" } | { mode: "edit"; user: Account }>(null);
   const [form, setForm] = useState({ name: "", email: "", password: "", role: "operator" });
-  const [msg, setMsg] = useState("");
   const [saving, setSaving] = useState(false);
 
   async function load() {
@@ -19,11 +23,12 @@ export default function AdminUsersPage() {
       setUsers(res.data);
     } catch (err) {
       if (err instanceof Error && /Hanya admin|403/.test(err.message)) setForbidden(true);
-      else setMsg(err instanceof Error ? err.message : "Gagal memuat.");
+      else toast.error(err instanceof Error ? err.message : "Gagal memuat.");
     }
   }
 
   useEffect(() => {
+    if (initialUsers !== undefined) return;
     load().catch(() => {});
   }, []);
 
@@ -37,20 +42,17 @@ export default function AdminUsersPage() {
 
   function openAdd() {
     setForm({ name: "", email: "", password: "", role: "operator" });
-    setMsg("");
     setDrawer({ mode: "add" });
   }
 
   function openEdit(u: Account) {
     setForm({ name: u.name, email: u.email, password: "", role: u.role });
-    setMsg("");
     setDrawer({ mode: "edit", user: u });
   }
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setSaving(true);
-    setMsg("");
     try {
       const payload: Record<string, string> = {
         name: form.name.trim(),
@@ -61,29 +63,33 @@ export default function AdminUsersPage() {
 
       if (drawer?.mode === "edit") {
         await apiFetch(`/users/${drawer.user.id}`, { method: "PUT", body: payload });
-        setMsg("Akun diperbarui.");
+        toast.success("Akun berhasil diperbarui.");
       } else {
         if (!form.password) throw new Error("Password wajib diisi (min. 8 karakter).");
         await apiFetch("/users", { method: "POST", body: payload });
-        setMsg("Akun dibuat.");
+        toast.success("Akun berhasil dibuat.");
       }
       setDrawer(null);
       await load();
     } catch (err) {
-      setMsg(err instanceof Error ? err.message : "Gagal menyimpan.");
+      toast.error(err instanceof Error ? err.message : "Gagal menyimpan.");
     } finally {
       setSaving(false);
     }
   }
 
   async function remove(u: Account) {
-    if (!confirm(`Hapus akun ${u.name} (${u.email})?`)) return;
-    setMsg("");
+    const ok = await confirmDlg({
+      title: "Hapus Data Ini?",
+      detail: `Akun "${u.name}" (${u.email}, peran ${u.role}) akan dihapus permanen dan langsung kehilangan akses.`,
+    });
+    if (!ok) return;
     try {
       await apiFetch(`/users/${u.id}`, { method: "DELETE" });
       await load();
+      toast.danger("Data berhasil dihapus.");
     } catch (err) {
-      setMsg(err instanceof Error ? err.message : "Gagal menghapus.");
+      toast.error(err instanceof Error ? err.message : "Gagal menghapus.");
     }
   }
 
@@ -117,8 +123,6 @@ export default function AdminUsersPage() {
         Admin penuh, operator kelola pertandingan, pubdok hanya berita. Sesi 12 jam.
       </p>
 
-      {msg && !drawer && <p className="mb-4 text-xs bg-white/5 border border-border rounded px-3 py-2">{msg}</p>}
-
       <div className="bg-surface border border-border rounded-xl overflow-x-auto">
         <table className="w-full text-sm min-w-[560px]">
           <thead>
@@ -141,7 +145,16 @@ export default function AdminUsersPage() {
                 </td>
                 <td className="p-3 text-right whitespace-nowrap">
                   <button onClick={() => openEdit(u)} className="text-xs text-muted hover:text-white mr-3">Ubah</button>
-                  <button onClick={() => remove(u)} className="text-xs text-muted hover:text-brand">Hapus</button>
+                  {isProtected(u) ? (
+                    <span
+                      className="text-xs text-muted/40 cursor-not-allowed"
+                      title={u.id === me?.id ? "Tidak bisa menghapus akun sendiri" : "Akun admin tidak bisa dihapus"}
+                    >
+                      Hapus
+                    </span>
+                  ) : (
+                    <button onClick={() => remove(u)} className="text-xs text-muted hover:text-brand">Hapus</button>
+                  )}
                 </td>
               </tr>
             ))}
@@ -162,8 +175,6 @@ export default function AdminUsersPage() {
               </button>
             </div>
             <p className="text-xs text-muted mb-4">Esc untuk tutup. Kosongkan password bila tidak diubah.</p>
-
-            {msg && <p className="mb-3 text-xs bg-white/5 border border-border rounded px-3 py-2">{msg}</p>}
 
             <form onSubmit={submit} className="grid gap-3">
               <div>

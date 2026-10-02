@@ -1,4 +1,5 @@
 import PublicLayout from "../../Layouts/PublicLayout";
+import Reveal from "../../Components/Reveal";
 
 export default function TentangPage({ settings }: { settings: Record<string, string> }) {
   const s = settings || {};
@@ -12,6 +13,7 @@ export default function TentangPage({ settings }: { settings: Record<string, str
     <PublicLayout>
     <main className="min-h-screen bg-dark text-white">
       <div className="max-w-[860px] mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <Reveal>
         <h1 className="font-display italic font-bold text-4xl md:text-5xl uppercase mt-3">
           Tentang <span className="text-brand">Turnamen</span>
         </h1>
@@ -21,6 +23,9 @@ export default function TentangPage({ settings }: { settings: Record<string, str
         <p className="text-sm text-muted mt-2 tracking-widest uppercase">
           {s.hero_subtitle || "More than a game, same passion, brighter generation"}
         </p>
+        </Reveal>
+
+        <Reveal delay={120}>
 
         <div className="grid sm:grid-cols-3 gap-3 mt-8">
           {info.map((i) => (
@@ -45,6 +50,7 @@ export default function TentangPage({ settings }: { settings: Record<string, str
         <p className="text-center text-xs text-muted mt-10 tracking-widest uppercase">
           One School <span className="text-brand mx-1">•</span> One Team <span className="text-brand mx-1">•</span> Brighter Tomorrow
         </p>
+        </Reveal>
       </div>
     </main>
     </PublicLayout>

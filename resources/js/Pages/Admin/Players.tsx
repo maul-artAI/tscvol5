@@ -1,6 +1,7 @@
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { apiFetch, revalidateSite, type Team } from "../../lib/api";
+import { useFeedback } from "../../Components/Feedback";
 import AdminLayout from "../../Layouts/AdminLayout";
 
 type Player = {
@@ -42,12 +43,13 @@ function parseBulkLine(line: string): { name: string; jersey_number: string; pos
   return { name: rest, jersey_number: num, position: pos };
 }
 
-export default function AdminPlayersPage() {
-  const [teams, setTeams] = useState<TeamWithCount[]>([]);
+export default function AdminPlayersPage({ initialTeams, initialTeamId, initialPlayers }: { initialTeams?: TeamWithCount[]; initialTeamId?: string; initialPlayers?: Player[] }) {
+  const { toast, confirmDlg } = useFeedback();
+  const [teams, setTeams] = useState<TeamWithCount[]>(initialTeams ?? []);
   const [cat, setCat] = useState<"SMA" | "SMP">("SMA");
-  const [grp, setGrp] = useState("A");
-  const [teamId, setTeamId] = useState("");
-  const [players, setPlayers] = useState<Player[]>([]);
+  const [grp, setGrp] = useState("");
+  const [teamId, setTeamId] = useState(initialTeamId ?? "");
+  const [players, setPlayers] = useState<Player[]>(initialPlayers ?? []);
   const [q, setQ] = useState("");
   const [drawer, setDrawer] = useState<null | { mode: "add" } | { mode: "edit"; player: Player } | { mode: "bulk" }>(null);
   const [form, setForm] = useState({ name: "", jersey_number: "", position: "", is_active: true });
@@ -55,7 +57,6 @@ export default function AdminPlayersPage() {
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const [removePhoto, setRemovePhoto] = useState(false);
   const [bulk, setBulk] = useState("");
-  const [msg, setMsg] = useState("");
   const [saving, setSaving] = useState(false);
 
   async function loadTeams() {
@@ -70,6 +71,7 @@ export default function AdminPlayersPage() {
   }
 
   useEffect(() => {
+    if (initialTeams !== undefined) return;
     loadTeams().catch(() => {});
   }, []);
 
@@ -90,7 +92,7 @@ export default function AdminPlayersPage() {
 
   // Tim terfilter + otomatis pilih pertama saat tab/grup berubah.
   const teamList = useMemo(
-    () => teams.filter((t) => t.category === cat && (t.group_name || "").endsWith(grp)),
+    () => teams.filter((t) => t.category === cat && (grp === "" ? !(t.group_name || "") : (t.group_name || "").endsWith(grp))),
     [teams, cat, grp]
   );
 
@@ -99,7 +101,12 @@ export default function AdminPlayersPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cat, grp, teams.length]);
 
+  const firstPlayersLoad = useRef(true);
   useEffect(() => {
+    if (firstPlayersLoad.current) {
+      firstPlayersLoad.current = false;
+      if (initialPlayers !== undefined) return;
+    }
     loadPlayers(teamId).catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [teamId]);
@@ -128,7 +135,6 @@ export default function AdminPlayersPage() {
     setPhoto(null);
     setPhotoPreview(null);
     setRemovePhoto(false);
-    setMsg("");
     setDrawer({ mode: "add" });
   }
 
@@ -142,20 +148,17 @@ export default function AdminPlayersPage() {
     setPhoto(null);
     setPhotoPreview(p.photo_url || null);
     setRemovePhoto(false);
-    setMsg("");
     setDrawer({ mode: "edit", player: p });
   }
 
   function openBulk() {
     setBulk("");
-    setMsg("");
     setDrawer({ mode: "bulk" });
   }
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setSaving(true);
-    setMsg("");
     try {
       const fd = new FormData();
       fd.append("name", form.name.trim());
@@ -167,16 +170,16 @@ export default function AdminPlayersPage() {
 
       if (drawer?.mode === "edit") {
         await apiFetch(`/players/${drawer.player.id}`, { method: "POST", body: fd });
-        setMsg("Pemain diperbarui.");
+        toast.success("Data pemain berhasil diperbarui.");
       } else {
         await apiFetch(`/teams/${teamId}/players`, { method: "POST", body: fd });
-        setMsg("Pemain ditambahkan.");
+        toast.success("Pemain berhasil ditambahkan.");
       }
       setDrawer(null);
       revalidateSite(["/tim", `/tim/${teamId}`]);
       await Promise.all([loadPlayers(teamId), loadTeams()]);
     } catch (err) {
-      setMsg(err instanceof Error ? err.message : "Gagal menyimpan.");
+      toast.error(err instanceof Error ? err.message : "Gagal menyimpan.");
     } finally {
       setSaving(false);
     }
@@ -185,7 +188,6 @@ export default function AdminPlayersPage() {
   async function submitBulk() {
     if (bulkParsed.length === 0) return;
     setSaving(true);
-    setMsg("");
     let ok = 0;
     const fail: string[] = [];
     for (const b of bulkParsed) {
@@ -202,19 +204,27 @@ export default function AdminPlayersPage() {
       }
     }
     setSaving(false);
-    setMsg(
-      `${ok} pemain ditambahkan.` + (fail.length > 0 ? ` Gagal: ${fail.join(", ")}.` : "")
-    );
+    if (fail.length > 0) toast.error(`${ok} pemain ditambahkan. Gagal: ${fail.join(", ")}.`);
+    else toast.success(`${ok} pemain berhasil ditambahkan.`);
     if (fail.length === 0) setDrawer(null);
     revalidateSite(["/tim", `/tim/${teamId}`]);
     await Promise.all([loadPlayers(teamId), loadTeams()]);
   }
 
   async function remove(p: Player) {
-    if (!confirm(`Hapus ${p.name}?`)) return;
-    await apiFetch(`/players/${p.id}`, { method: "DELETE" });
-    revalidateSite(["/tim", `/tim/${teamId}`]);
-    await Promise.all([loadPlayers(teamId), loadTeams()]);
+    const ok = await confirmDlg({
+      title: "Hapus Data Ini?",
+      detail: `Pemain "${p.name}" dari tim ${team?.name || ""} akan dihapus permanen beserta fotonya.`,
+    });
+    if (!ok) return;
+    try {
+      await apiFetch(`/players/${p.id}`, { method: "DELETE" });
+      revalidateSite(["/tim", `/tim/${teamId}`]);
+      await Promise.all([loadPlayers(teamId), loadTeams()]);
+      toast.success("Data berhasil dihapus.");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Gagal menghapus.");
+    }
   }
 
   const input =
@@ -223,6 +233,21 @@ export default function AdminPlayersPage() {
 
   return (
     <AdminLayout>
+    <div>
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-1">
+        <h1 className="font-display italic font-bold text-2xl">Kelola Pemain</h1>
+        <button
+          onClick={openAdd}
+          disabled={!teamId}
+          className="bg-brand hover:bg-red-700 disabled:opacity-40 text-white text-sm font-bold px-4 py-2 rounded-lg transition live-glow"
+        >
+          + Tambah Pemain
+        </button>
+      </div>
+      <p className="text-sm text-muted mb-5">
+        Pilih tim di samping, lalu tambah dan kelola skuadnya.
+      </p>
+    </div>
     <div className="flex gap-4">
       {/* Navigasi tim */}
       <aside className="w-60 shrink-0 hidden md:block">
@@ -251,6 +276,14 @@ export default function AdminPlayersPage() {
               {g}
             </button>
           ))}
+          <button
+            onClick={() => setGrp("")}
+            className={`col-span-4 py-1.5 rounded text-xs font-bold transition ${
+              grp === "" ? "bg-brand text-white" : "bg-surface border border-border text-muted hover:text-white"
+            }`}
+          >
+            Belum ada grup
+          </button>
         </div>
         <div className="flex flex-col gap-1">
           {teamList.map((t) => (
@@ -280,6 +313,7 @@ export default function AdminPlayersPage() {
             <option value="SMP">SMP</option>
           </select>
           <select value={grp} onChange={(e) => setGrp(e.target.value)} className={input}>
+            <option value="">Belum ada grup</option>
             {GROUPS.map((g) => (
               <option key={g} value={g}>Grup {g}</option>
             ))}
@@ -306,18 +340,9 @@ export default function AdminPlayersPage() {
             >
               + Banyak Sekaligus
             </button>
-            <button
-              onClick={openAdd}
-              disabled={!teamId}
-              className="bg-brand hover:bg-red-700 disabled:opacity-40 text-white text-sm font-bold px-4 py-2 rounded-lg transition live-glow"
-            >
-              + Satu Pemain
-            </button>
           </div>
         </div>
         <p className="text-xs text-muted mb-4">Angka merah = tim belum punya skuad. Samakan ejaan nama dengan event gol.</p>
-
-        {msg && !drawer && <p className="mb-3 text-xs bg-white/5 border border-border rounded px-3 py-2">{msg}</p>}
 
         <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Cari pemain..." className={`${input} mb-3`} />
 
@@ -374,8 +399,6 @@ export default function AdminPlayersPage() {
               </button>
             </div>
             <p className="text-xs text-muted mb-4">Esc untuk tutup tanpa menyimpan.</p>
-
-            {msg && <p className="mb-3 text-xs bg-white/5 border border-border rounded px-3 py-2">{msg}</p>}
 
             <form onSubmit={submit} className="grid gap-3">
               <div className="flex items-center gap-3">
@@ -449,8 +472,6 @@ export default function AdminPlayersPage() {
               Satu baris satu pemain. Format bebas: <code className="text-white">10 - Ahmad R. - Pivot</code> atau{" "}
               <code className="text-white">Ahmad R.</code> saja.
             </p>
-
-            {msg && <p className="mb-3 text-xs bg-white/5 border border-border rounded px-3 py-2">{msg}</p>}
 
             <textarea
               autoFocus

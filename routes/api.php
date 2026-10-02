@@ -3,6 +3,7 @@
 use App\Http\Controllers\Api\V1\BracketController;
 use App\Http\Controllers\Api\V1\LandingController;
 use App\Http\Controllers\Api\V1\NewsController;
+use App\Http\Controllers\Api\V1\GalleryController;
 use App\Http\Controllers\Api\V1\PlayerController;
 use App\Http\Controllers\Api\V1\SettingController;
 use App\Http\Controllers\Api\V1\StandingsController;
@@ -28,6 +29,9 @@ Route::get('/statistics/top', [StatisticsController::class, 'top']);
 Route::get('/teams/{team}/players', [PlayerController::class, 'index']);
 Route::get('/news', [NewsController::class, 'index']);
 Route::get('/news/{slug}', [NewsController::class, 'show']);
+Route::get('/gallery', [GalleryController::class, 'index']);
+Route::get('/gallery/albums', [GalleryController::class, 'albums']);
+Route::get('/gallery/albums/{slug}', [GalleryController::class, 'albumShow']);
 Route::get('/settings', [SettingController::class, 'index']);
 Route::get('/landing', [LandingController::class, 'index']);
 });

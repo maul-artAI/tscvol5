@@ -344,89 +344,90 @@ export default function BracketDiagram({
           const mainRounds = rounds
             .map((r) => ({ ...r, matches: r.matches.filter((m) => !isPoSlot(m.slot)) }))
             .filter((r) => r.matches.length > 0);
+          const finalMatch = all.find((x) => x.slot === "F-1");
+          const fw = finalMatch ? winnerOf(finalMatch) : 0;
+          const runnerUp = fw === 0 || !finalMatch ? null : fw === 1 ? finalMatch.team2 : finalMatch.team1;
           return mainRounds.map((r) => {
             const isFinalCol = r.matches.some((m) => m.slot === "F-1");
             return (
-          <div key={r.order} className="w-64 shrink-0 flex flex-col self-stretch">
+          <div key={r.order} className={isFinalCol ? "shrink-0 flex flex-col self-stretch" : "w-64 shrink-0 flex flex-col self-stretch"}>
             <h2 className="font-display italic font-bold text-lg uppercase mb-4 text-center shrink-0">
               <span className="text-brand">●</span> {r.label}
             </h2>
-            <div className="flex-1 flex flex-col justify-around gap-6">
-              {r.matches.map((m) => (
-                <MatchCard key={m.id} m={m} all={all} renderTeamRow={renderTeamRow} renderCardFooter={renderCardFooter} />
-              ))}
-              {isFinalCol && poMatches.length > 0 && (
-                <div className="mt-8">
-                  <h3 className="font-display italic font-bold text-sm uppercase mb-3 text-center shrink-0 text-muted">
-                    Perebutan Juara 3
-                  </h3>
-                  <div className="flex flex-col gap-6">
-                    {poMatches.map((m) => (
+            {isFinalCol ? (
+              <div className="flex-1 flex flex-col justify-center gap-6">
+                <div className="flex items-center gap-14">
+                  <div className="w-64 shrink-0 flex flex-col gap-6">
+                    {r.matches.map((m) => (
                       <MatchCard key={m.id} m={m} all={all} renderTeamRow={renderTeamRow} renderCardFooter={renderCardFooter} />
                     ))}
                   </div>
+                  <div className="w-64 shrink-0 flex flex-col gap-4">
+                    <div
+                      data-mid="champ"
+                      className="relative z-10 bg-gradient-to-r from-brand/20 to-transparent border border-brand/40 rounded-xl p-4 flex items-center gap-3"
+                    >
+                      {champion ? (
+                        <>
+                          <i className="fa-solid fa-trophy text-amber-400 text-2xl"></i>
+                          <div>
+                            <div className="text-[10px] font-bold text-amber-400 uppercase">1st • Juara 1</div>
+                            <div className="font-display italic font-bold leading-tight">{champion.name}</div>
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <i className="fa-solid fa-shield-halved text-muted text-2xl"></i>
+                          <div>
+                            <div className="text-[10px] font-bold text-muted uppercase">1st • Juara 1</div>
+                            <div className="font-display italic font-bold leading-tight text-muted">TBD</div>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                    {runnerUp && (
+                      <div className="relative z-10 bg-surface border border-border rounded-xl p-4 flex items-center gap-3">
+                        <i className="fa-solid fa-medal text-gray-300 text-2xl"></i>
+                        <div>
+                          <div className="text-[10px] font-bold text-gray-300 uppercase">2nd • Juara 2</div>
+                          <div className="font-display italic font-bold leading-tight">{runnerUp.short_name || runnerUp.name}</div>
+                        </div>
+                      </div>
+                    )}
+                    {third && (
+                      <div className="relative z-10 bg-surface border border-border rounded-xl p-4 flex items-center gap-3">
+                        <span className="text-xl">🥉</span>
+                        <div>
+                          <div className="text-[10px] font-bold text-amber-600 uppercase">3rd • Juara 3</div>
+                          <div className="font-display italic font-bold leading-tight">{third.name}</div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
-              )}
-            </div>
+                {poMatches.length > 0 && (
+                  <div className="mt-6 w-64">
+                    <h3 className="font-display italic font-bold text-sm uppercase mb-3 text-center shrink-0 text-muted">
+                      Perebutan Juara 3
+                    </h3>
+                    <div className="flex flex-col gap-6">
+                      {poMatches.map((m) => (
+                        <MatchCard key={m.id} m={m} all={all} renderTeamRow={renderTeamRow} renderCardFooter={renderCardFooter} />
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="flex-1 flex flex-col justify-around gap-6">
+                {r.matches.map((m) => (
+                  <MatchCard key={m.id} m={m} all={all} renderTeamRow={renderTeamRow} renderCardFooter={renderCardFooter} />
+                ))}
+              </div>
+            )}
           </div>
           );
           });
-        })()}
-
-        {rounds.length > 0 && (() => {
-          const all = rounds.flatMap((rr) => rr.matches);
-          const final = all.find((x) => x.slot === "F-1");
-          const fw = final ? winnerOf(final) : 0;
-          const runnerUp = fw === 0 ? null : fw === 1 ? final!.team2 : final!.team1;
-          return (
-          <div className="w-64 shrink-0 flex flex-col self-stretch">
-            <h2 className="font-display italic font-bold text-lg uppercase mb-4 text-center shrink-0">
-              <span className="text-brand">●</span> Juara TSC Vol 5
-            </h2>
-            <div className="flex-1 flex flex-col justify-around gap-4">
-              <div
-                data-mid="champ"
-                className="relative z-10 bg-gradient-to-r from-brand/20 to-transparent border border-brand/40 rounded-xl p-4 flex items-center gap-3"
-              >
-                {champion ? (
-                  <>
-                    <i className="fa-solid fa-trophy text-amber-400 text-2xl"></i>
-                    <div>
-                      <div className="text-[10px] font-bold text-amber-400 uppercase">1st • Juara 1</div>
-                      <div className="font-display italic font-bold leading-tight">{champion.name}</div>
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    <i className="fa-solid fa-shield-halved text-muted text-2xl"></i>
-                    <div>
-                      <div className="text-[10px] font-bold text-muted uppercase">1st • Juara 1</div>
-                      <div className="font-display italic font-bold leading-tight text-muted">TBD</div>
-                    </div>
-                  </>
-                )}
-              </div>
-              {runnerUp && (
-                <div className="relative z-10 bg-surface border border-border rounded-xl p-4 flex items-center gap-3">
-                  <i className="fa-solid fa-medal text-gray-300 text-2xl"></i>
-                  <div>
-                    <div className="text-[10px] font-bold text-gray-300 uppercase">2nd • Juara 2</div>
-                    <div className="font-display italic font-bold leading-tight">{runnerUp.short_name || runnerUp.name}</div>
-                  </div>
-                </div>
-              )}
-              {third && (
-                <div className="relative z-10 bg-surface border border-border rounded-xl p-4 flex items-center gap-3">
-                  <span className="text-xl">🥉</span>
-                  <div>
-                    <div className="text-[10px] font-bold text-amber-600 uppercase">3rd • Juara 3</div>
-                    <div className="font-display italic font-bold leading-tight">{third.name}</div>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-          );
         })()}
       </div>
     </div>

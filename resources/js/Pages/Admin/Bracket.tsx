@@ -413,11 +413,25 @@ export default function AdminBracketPage({ initialCategory, initialBracket, init
 
       {champion && (
         <div className="mb-5 bg-gradient-to-r from-brand/20 to-transparent border border-brand/40 rounded-xl p-3 flex items-center gap-3">
-          <i className="fa-solid fa-trophy text-brand text-xl"></i>
+          <i className="fa-solid fa-trophy text-amber-400 text-xl"></i>
           <div>
-            <div className="text-[11px] font-bold text-muted uppercase">Juara {cat}</div>
+            <div className="text-[11px] font-bold text-muted uppercase">Juara 1 {cat}</div>
             <div className="font-display italic font-bold">{champion.name}</div>
           </div>
+          {(() => {
+            const f = rounds.flatMap((r) => r.matches).find((x) => x.slot === "F-1");
+            const w = f ? winnerOf(f) : 0;
+            const ru = w === 0 || !f ? null : w === 1 ? f.team2 : f.team1;
+            return ru ? (
+              <div className="ml-auto flex items-center gap-2 text-right">
+                <div>
+                  <div className="text-[11px] font-bold text-muted uppercase">Juara 2</div>
+                  <div className="font-display italic font-bold">{ru.short_name || ru.name}</div>
+                </div>
+                <i className="fa-solid fa-medal text-gray-300 text-xl"></i>
+              </div>
+            ) : null;
+          })()}
           {third && (
             <div className="ml-auto flex items-center gap-2 text-right">
               <div>

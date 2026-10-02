@@ -18,6 +18,8 @@ export type BracketMatch = {
   team2?: Team | null;
   winner_next_match_id?: number | null;
   winner_next_side?: string | null;
+  loser_next_match_id?: number | null;
+  loser_next_side?: string | null;
   is_walkover?: boolean;
   penalty1?: number | null;
   penalty2?: number | null;
@@ -157,8 +159,9 @@ export default function BracketDiagram({
           if (m.winner_next_match_id) links.push([m.id, m.winner_next_match_id]);
         })
       );
-      if (champion && rounds.length > 0) {
-        const final = [...rounds].sort((a, b) => b.order - a.order)[0]?.matches[0];
+      if (rounds.length > 0) {
+        const all = rounds.flatMap((r) => r.matches);
+        const final = all.find((x) => x.slot === "F-1") || [...rounds].sort((a, b) => b.order - a.order)[0]?.matches[0];
         if (final) links.push([final.id, "champ"]);
       }
 
@@ -225,9 +228,13 @@ export default function BracketDiagram({
                 const decided = w !== 0;
                 const pen = isPenaltyDecided(m);
                 const feeders = rounds.flatMap((rr) => rr.matches).filter((x) => x.winner_next_match_id === m.id);
+                const feedLosers = rounds.flatMap((rr) => rr.matches).filter((x) => x.loser_next_match_id === m.id);
                 const feedLabel = (side: "team1" | "team2") => {
                   const f = feeders.find((x) => x.winner_next_side === side);
-                  return f ? `Pemenang ${f.slot || `#${f.id}`}` : null;
+                  if (f) return `Pemenang ${f.slot || `#${f.id}`}`;
+                  const l = feedLosers.find((x) => x.loser_next_side === side);
+                  if (l) return `Kalah ${l.slot || `#${l.id}`}`;
+                  return null;
                 };
                 return (
                   <div
@@ -288,31 +295,61 @@ export default function BracketDiagram({
           </div>
         ))}
 
-        {champion && (
+        {rounds.length > 0 && (() => {
+          const all = rounds.flatMap((rr) => rr.matches);
+          const final = all.find((x) => x.slot === "F-1");
+          const fw = final ? winnerOf(final) : 0;
+          const runnerUp = fw === 0 ? null : fw === 1 ? final!.team2 : final!.team1;
+          return (
           <div className="w-64 shrink-0 flex flex-col self-stretch">
             <h2 className="font-display italic font-bold text-lg uppercase mb-4 text-center shrink-0">
-              <span className="text-brand">●</span> Juara
+              <span className="text-brand">●</span> Juara TSC Vol 5
             </h2>
             <div className="flex-1 flex flex-col justify-around gap-4">
               <div
                 data-mid="champ"
                 className="relative z-10 bg-gradient-to-r from-brand/20 to-transparent border border-brand/40 rounded-xl p-4 flex items-center gap-3"
               >
-                <i className="fa-solid fa-trophy text-brand text-2xl"></i>
-                <div className="font-display italic font-bold leading-tight">{champion.name}</div>
+                {champion ? (
+                  <>
+                    <i className="fa-solid fa-trophy text-amber-400 text-2xl"></i>
+                    <div>
+                      <div className="text-[10px] font-bold text-amber-400 uppercase">1st • Juara 1</div>
+                      <div className="font-display italic font-bold leading-tight">{champion.name}</div>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <i className="fa-solid fa-shield-halved text-muted text-2xl"></i>
+                    <div>
+                      <div className="text-[10px] font-bold text-muted uppercase">1st • Juara 1</div>
+                      <div className="font-display italic font-bold leading-tight text-muted">TBD</div>
+                    </div>
+                  </>
+                )}
               </div>
+              {runnerUp && (
+                <div className="relative z-10 bg-surface border border-border rounded-xl p-4 flex items-center gap-3">
+                  <i className="fa-solid fa-medal text-gray-300 text-2xl"></i>
+                  <div>
+                    <div className="text-[10px] font-bold text-gray-300 uppercase">2nd • Juara 2</div>
+                    <div className="font-display italic font-bold leading-tight">{runnerUp.short_name || runnerUp.name}</div>
+                  </div>
+                </div>
+              )}
               {third && (
                 <div className="relative z-10 bg-surface border border-border rounded-xl p-4 flex items-center gap-3">
                   <span className="text-xl">🥉</span>
                   <div>
-                    <div className="text-[10px] font-bold text-muted uppercase">Juara 3</div>
+                    <div className="text-[10px] font-bold text-amber-600 uppercase">3rd • Juara 3</div>
                     <div className="font-display italic font-bold leading-tight">{third.name}</div>
                   </div>
                 </div>
               )}
             </div>
           </div>
-        )}
+          );
+        })()}
       </div>
     </div>
   );

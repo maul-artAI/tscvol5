@@ -30,7 +30,22 @@ export type BracketRound = { order: number; label: string; matches: BracketMatch
 
 type Line = { d: string; hot: boolean };
 
-function TeamRow({ team, score, won, pen, showPen, slot, side, emptyLabel, notStarted }: { team?: Team | null; score: number; won: boolean; pen?: number | null; showPen?: boolean; slot?: string | null; side?: "team1" | "team2"; emptyLabel?: string | null; notStarted?: boolean }) {
+/** Lencana peringkat: 1 emas, 2 perak, 3 perunggu. */
+export function RankBadge({ rank }: { rank: 1 | 2 | 3 }) {
+  const styles = {
+    1: "bg-amber-400/20 text-amber-400 border-amber-400/40",
+    2: "bg-gray-300/15 text-gray-300 border-gray-300/30",
+    3: "bg-orange-700/20 text-orange-400 border-orange-700/40",
+  } as const;
+  const labels = { 1: "1st", 2: "2nd", 3: "3rd" } as const;
+  return (
+    <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded border shrink-0 ${styles[rank]}`}>
+      {labels[rank]}
+    </span>
+  );
+}
+
+function TeamRow({ team, score, won, pen, showPen, slot, side, emptyLabel, notStarted, rank }: { team?: Team | null; score: number; won: boolean; pen?: number | null; showPen?: boolean; slot?: string | null; side?: "team1" | "team2"; emptyLabel?: string | null; notStarted?: boolean; rank?: 1 | 2 | 3 | null }) {
   return (
     <div className={`flex items-center justify-between gap-2 px-3 py-2 ${won ? "bg-white/5" : ""}`}>
       <span className={`flex items-center gap-2 min-w-0 text-[13px] ${won ? "font-bold text-white" : "text-gray-300"}`}>
@@ -41,6 +56,7 @@ function TeamRow({ team, score, won, pen, showPen, slot, side, emptyLabel, notSt
         )}
         <span className="truncate">{team ? team.short_name || team.name : emptyLabel || expectedLabel(slot, side) || "TBD"}</span>
         {won && <i className="fa-solid fa-check text-green-400 text-xs shrink-0"></i>}
+        {rank && <RankBadge rank={rank} />}
         {showPen && <span className="text-[9px] font-bold bg-white/10 text-gray-300 px-1.5 py-0.5 rounded shrink-0">PEN</span>}
       </span>
       <span className={`font-display italic font-bold tabular-nums ${won ? "text-white" : "text-muted"}`}>
@@ -64,6 +80,7 @@ function TeamRowOrCustom({
   side,
   emptyLabel,
   notStarted,
+  rank,
 }: {
   custom?: React.ReactNode;
   team?: Team | null;
@@ -75,9 +92,25 @@ function TeamRowOrCustom({
   side?: "team1" | "team2";
   emptyLabel?: string | null;
   notStarted?: boolean;
+  rank?: 1 | 2 | 3 | null;
 }) {
   if (custom !== undefined) return <>{custom}</>;
-  return <TeamRow team={team} score={score} won={won} pen={pen} showPen={showPen} slot={slot} side={side} emptyLabel={emptyLabel} notStarted={notStarted} />;
+  return <TeamRow team={team} score={score} won={won} pen={pen} showPen={showPen} slot={slot} side={side} emptyLabel={emptyLabel} notStarted={notStarted} rank={rank} />;
+}
+
+/** Peringkat sisi laga: F-1 → 1st/2nd, PO → 3rd untuk pemenang. */
+export function sideRank(m: BracketMatch, side: "team1" | "team2"): 1 | 2 | 3 | null {
+  const w = winnerOf(m);
+  if (w === 0) return null;
+  if (m.slot === "F-1") return (side === "team1" ? 1 : 2) === w ? (w as 1 | 2) : null;
+  if (m.slot && m.slot.startsWith("PO-")) {
+    return (side === "team1" ? 1 : 2) === w ? 3 : null;
+  }
+  return null;
+}
+
+export function isPoSlot(slot?: string | null): boolean {
+  return !!slot && slot.startsWith("PO-");
 }
 
 /** Label sumber slot R16 bila tim belum terisi (cermin r16Sources backend). */
@@ -120,6 +153,92 @@ export function isPenaltyDecided(m: BracketMatch): boolean {
   );
 }
 
+/** Satu kartu laga: dipakai ronde utama maupun PO di bawah final. */
+function MatchCard({
+  m,
+  all,
+  renderTeamRow,
+  renderCardFooter,
+}: {
+  m: BracketMatch;
+  all: BracketMatch[];
+  renderTeamRow?: (
+    m: BracketMatch,
+    side: "team1" | "team2",
+    team: Team | null | undefined,
+    score: number,
+    won: boolean
+  ) => React.ReactNode;
+  renderCardFooter?: (m: BracketMatch) => React.ReactNode;
+}) {
+  const w = winnerOf(m);
+  const decided = w !== 0;
+  const pen = isPenaltyDecided(m);
+  const feedLabel = (side: "team1" | "team2") => {
+    const f = all.find((x) => x.winner_next_match_id === m.id && x.winner_next_side === side);
+    if (f) return `Pemenang ${f.slot || `#${f.id}`}`;
+    const l = all.find((x) => x.loser_next_match_id === m.id && x.loser_next_side === side);
+    if (l) return `Kalah ${l.slot || `#${l.id}`}`;
+    return null;
+  };
+  return (
+                  <div
+                    key={m.id}
+                    data-mid={m.id}
+                    data-decided={decided ? "1" : "0"}
+                    className="relative z-10 bg-surface border border-border rounded-xl overflow-hidden"
+                  >
+                    <div className="px-3 py-1.5 border-b border-border flex items-center justify-between bg-dark/50">
+                      <span className="text-[10px] font-bold text-muted uppercase">
+                        {m.slot} • {m.lapangan}
+                      </span>
+                      {m.status === "live" && (
+                        <span className="text-[10px] font-bold bg-brand px-2 py-0.5 rounded live-glow">LIVE</span>
+                      )}
+                      {m.is_walkover && (
+                        <span className="text-[10px] font-bold bg-amber-500/20 text-amber-400 px-2 py-0.5 rounded">WO</span>
+                      )}
+                      {m.status === "finished" && (
+                        <span className="text-[10px] font-bold text-muted">FT</span>
+                      )}
+                    </div>
+                    <TeamRowOrCustom
+                      custom={renderTeamRow?.(m, "team1", m.team1, m.team1_score, w === 1)}
+                      team={m.team1}
+                      score={m.team1_score}
+                      won={w === 1}
+                      pen={m.penalty1}
+                      showPen={pen}
+                      slot={m.slot}
+                      side="team1"
+                      emptyLabel={feedLabel("team1")}
+                      notStarted={m.status === "scheduled"}
+                      rank={sideRank(m, "team1")}
+                    />
+                    <div className="border-t border-white/5" />
+                    <TeamRowOrCustom
+                      custom={renderTeamRow?.(m, "team2", m.team2, m.team2_score, w === 2)}
+                      team={m.team2}
+                      score={m.team2_score}
+                      won={w === 2}
+                      pen={m.penalty2}
+                      showPen={pen}
+                      slot={m.slot}
+                      side="team2"
+                      emptyLabel={feedLabel("team2")}
+                      notStarted={m.status === "scheduled"}
+                      rank={sideRank(m, "team2")}
+                    />
+                    {renderCardFooter?.(m)}
+                    {m.status === "live" && m.clock_display && (
+                      <div className="px-3 py-1 text-[10px] text-brand font-bold tabular-nums border-t border-white/5">
+                        {m.period} • {m.clock_display}
+                      </div>
+                    )}
+                  </div>
+  );
+}
+
 export default function BracketDiagram({
   rounds,
   champion,
@@ -156,6 +275,8 @@ export default function BracketDiagram({
       const links: Array<[number, number | "champ"]> = [];
       rounds.forEach((r) =>
         r.matches.forEach((m) => {
+          // PO-1 standalone: tanpa garis masuk/keluar.
+          if (isPoSlot(m.slot)) return;
           if (m.winner_next_match_id) links.push([m.id, m.winner_next_match_id]);
         })
       );
@@ -217,83 +338,40 @@ export default function BracketDiagram({
           ))}
         </svg>
 
-        {rounds.map((r) => (
+        {(() => {
+          const all = rounds.flatMap((rr) => rr.matches);
+          const poMatches = all.filter((m) => isPoSlot(m.slot));
+          const mainRounds = rounds
+            .map((r) => ({ ...r, matches: r.matches.filter((m) => !isPoSlot(m.slot)) }))
+            .filter((r) => r.matches.length > 0);
+          return mainRounds.map((r) => {
+            const isFinalCol = r.matches.some((m) => m.slot === "F-1");
+            return (
           <div key={r.order} className="w-64 shrink-0 flex flex-col self-stretch">
             <h2 className="font-display italic font-bold text-lg uppercase mb-4 text-center shrink-0">
               <span className="text-brand">●</span> {r.label}
             </h2>
             <div className="flex-1 flex flex-col justify-around gap-6">
-              {r.matches.map((m) => {
-                const w = winnerOf(m);
-                const decided = w !== 0;
-                const pen = isPenaltyDecided(m);
-                const feeders = rounds.flatMap((rr) => rr.matches).filter((x) => x.winner_next_match_id === m.id);
-                const feedLosers = rounds.flatMap((rr) => rr.matches).filter((x) => x.loser_next_match_id === m.id);
-                const feedLabel = (side: "team1" | "team2") => {
-                  const f = feeders.find((x) => x.winner_next_side === side);
-                  if (f) return `Pemenang ${f.slot || `#${f.id}`}`;
-                  const l = feedLosers.find((x) => x.loser_next_side === side);
-                  if (l) return `Kalah ${l.slot || `#${l.id}`}`;
-                  return null;
-                };
-                return (
-                  <div
-                    key={m.id}
-                    data-mid={m.id}
-                    data-decided={decided ? "1" : "0"}
-                    className="relative z-10 bg-surface border border-border rounded-xl overflow-hidden"
-                  >
-                    <div className="px-3 py-1.5 border-b border-border flex items-center justify-between bg-dark/50">
-                      <span className="text-[10px] font-bold text-muted uppercase">
-                        {m.slot} • {m.lapangan}
-                      </span>
-                      {m.status === "live" && (
-                        <span className="text-[10px] font-bold bg-brand px-2 py-0.5 rounded live-glow">LIVE</span>
-                      )}
-                      {m.is_walkover && (
-                        <span className="text-[10px] font-bold bg-amber-500/20 text-amber-400 px-2 py-0.5 rounded">WO</span>
-                      )}
-                      {m.status === "finished" && (
-                        <span className="text-[10px] font-bold text-muted">FT</span>
-                      )}
-                    </div>
-                    <TeamRowOrCustom
-                      custom={renderTeamRow?.(m, "team1", m.team1, m.team1_score, w === 1)}
-                      team={m.team1}
-                      score={m.team1_score}
-                      won={w === 1}
-                      pen={m.penalty1}
-                      showPen={pen}
-                      slot={m.slot}
-                      side="team1"
-                      emptyLabel={feedLabel("team1")}
-                      notStarted={m.status === "scheduled"}
-                    />
-                    <div className="border-t border-white/5" />
-                    <TeamRowOrCustom
-                      custom={renderTeamRow?.(m, "team2", m.team2, m.team2_score, w === 2)}
-                      team={m.team2}
-                      score={m.team2_score}
-                      won={w === 2}
-                      pen={m.penalty2}
-                      showPen={pen}
-                      slot={m.slot}
-                      side="team2"
-                      emptyLabel={feedLabel("team2")}
-                      notStarted={m.status === "scheduled"}
-                    />
-                    {renderCardFooter?.(m)}
-                    {m.status === "live" && m.clock_display && (
-                      <div className="px-3 py-1 text-[10px] text-brand font-bold tabular-nums border-t border-white/5">
-                        {m.period} • {m.clock_display}
-                      </div>
-                    )}
+              {r.matches.map((m) => (
+                <MatchCard key={m.id} m={m} all={all} renderTeamRow={renderTeamRow} renderCardFooter={renderCardFooter} />
+              ))}
+              {isFinalCol && poMatches.length > 0 && (
+                <div className="mt-8">
+                  <h3 className="font-display italic font-bold text-sm uppercase mb-3 text-center shrink-0 text-muted">
+                    Perebutan Juara 3
+                  </h3>
+                  <div className="flex flex-col gap-6">
+                    {poMatches.map((m) => (
+                      <MatchCard key={m.id} m={m} all={all} renderTeamRow={renderTeamRow} renderCardFooter={renderCardFooter} />
+                    ))}
                   </div>
-                );
-              })}
+                </div>
+              )}
             </div>
           </div>
-        ))}
+          );
+          });
+        })()}
 
         {rounds.length > 0 && (() => {
           const all = rounds.flatMap((rr) => rr.matches);

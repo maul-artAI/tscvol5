@@ -117,6 +117,8 @@ class TournamentMatch extends Model
             'match_date' => 'date',
             'clock_running' => 'boolean',
             'clock_updated_at' => 'datetime',
+            'is_penalty' => 'boolean',
+            'is_walkover' => 'boolean',
         ];
     }
 

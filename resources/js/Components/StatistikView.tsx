@@ -74,21 +74,6 @@ export default function StatistikView({
           <RankTable rows={initialSmp.scorers} valueKey="goals" valueLabel="Gol" />
         </div>
       </div>
-
-      <div className="grid lg:grid-cols-2 gap-6 mt-8">
-        <div>
-          <h2 className="font-display italic font-bold text-xl uppercase mb-3">
-            <i className="fa-solid fa-handshake text-brand mr-2"></i>Top Assist SMA
-          </h2>
-          <RankTable rows={initialSma.assists} valueKey="assists" valueLabel="Ast" />
-        </div>
-        <div>
-          <h2 className="font-display italic font-bold text-xl uppercase mb-3">
-            <i className="fa-solid fa-handshake text-brand mr-2"></i>Top Assist SMP
-          </h2>
-          <RankTable rows={initialSmp.assists} valueKey="assists" valueLabel="Ast" />
-        </div>
-      </div>
     </>
   );
 }

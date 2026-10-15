@@ -27,6 +27,7 @@ class MatchReportController extends Controller
         $pdf = Pdf::loadView('reports.berita-acara', [
             'match' => $match,
             'events' => $events,
+            'hasShootout' => $events->contains(fn ($e) => in_array($e->type, ['shootout_goal', 'shootout_miss'], true)),
             'summary' => $summary,
             'typeLabels' => [
                 'goal' => 'Gol',

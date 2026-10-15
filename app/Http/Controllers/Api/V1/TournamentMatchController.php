@@ -66,6 +66,10 @@ class TournamentMatchController extends Controller
             return response()->json(['message' => $dupError], 422);
         }
 
+        if ($err = $this->rejectUndecidedKnockout($validated, $match)) {
+            return response()->json(['message' => $err], 422);
+        }
+
         $this->ensureLapanganFree(
             $validated['lapangan'] ?? $match->lapangan,
             $match->id,
@@ -105,6 +109,10 @@ class TournamentMatchController extends Controller
 
         if (($validated['status'] ?? $match->status) === 'live') {
             $this->ensureLapanganFree($match->lapangan, $match->id, 'live');
+        }
+
+        if ($err = $this->rejectUndecidedKnockout($validated, $match)) {
+            return response()->json(['message' => $err], 422);
         }
 
         $match->update($validated);
@@ -175,6 +183,31 @@ class TournamentMatchController extends Controller
             ?? "Tim #$teamId";
 
         return "$name sudah terpasang di slot {$dup->slot} pada babak ini — satu tim tidak boleh tampil dua kali.";
+    }
+
+    /**
+     * Tolak penyelesaian laga gugur yang imbang tanpa penalti penentu:
+     * mencegah skor/flag setengah terisi (kasus 103/129).
+     * Laga grup (round_order 0) boleh seri — tidak diganggu.
+     */
+    private function rejectUndecidedKnockout(array $validated, TournamentMatch $match): ?string
+    {
+        $status = $validated['status'] ?? $match->status;
+        if ($status !== 'finished' || (int) ($match->round_order ?? 0) <= 0) {
+            return null;
+        }
+        $s1 = $validated['team1_score'] ?? $match->team1_score;
+        $s2 = $validated['team2_score'] ?? $match->team2_score;
+        if ($s1 !== $s2) {
+            return null;
+        }
+        $p1 = array_key_exists('penalty1', $validated) ? $validated['penalty1'] : $match->penalty1;
+        $p2 = array_key_exists('penalty2', $validated) ? $validated['penalty2'] : $match->penalty2;
+        if ($p1 !== null && $p2 !== null && $p1 !== $p2) {
+            return null;
+        }
+
+        return 'Laga gugur seri wajib dilengkapi skor adu penalti yang menentukan (tidak boleh imbang) sebelum diselesaikan.';
     }
 
     /**

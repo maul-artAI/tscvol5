@@ -65,7 +65,7 @@
     <td class="score">{{ $match->team1_score }} - {{ $match->team2_score }}</td>
     <td class="team">{{ $match->team2->name ?? 'TBD' }}</td>
   </tr>
-  @if($match->is_penalty || (!is_null($match->penalty1) && !is_null($match->penalty2)))
+  @if($match->is_penalty || !is_null($match->penalty1) || !is_null($match->penalty2) || $hasShootout)
   <tr>
     <td class="center" style="font-size:12px">Adu Penalti</td>
     <td class="score" style="font-size:16px">({{ $match->penalty1 ?? '-' }} - {{ $match->penalty2 ?? '-' }})</td>

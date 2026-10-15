@@ -237,6 +237,7 @@ export default function AdminMatchDetailPage({ id, initialMatch, initialSquad }:
   async function submitGoalModal(e: React.FormEvent) {
     e.preventDefault();
     if (!goalModal || !gScorer.trim()) return;
+    if (!(await ensureKnown(gScorer, goalModal.side))) return;
     const side = goalModal.side;
     setModalSaving(true);
     try {
@@ -282,6 +283,7 @@ export default function AdminMatchDetailPage({ id, initialMatch, initialSquad }:
   async function submitPenModal(e: React.FormEvent) {
     e.preventDefault();
     if (!penModal || !pPlayer.trim()) return;
+    if (!(await ensureKnown(pPlayer, penModal.side))) return;
     setModalSaving(true);
     try {
       await apiFetch(`/matches/${id}/events`, {
@@ -316,6 +318,7 @@ export default function AdminMatchDetailPage({ id, initialMatch, initialSquad }:
   async function submitAction(e: React.FormEvent) {
     e.preventDefault();
     if (!actModal || !aPlayer.trim()) return;
+    if (!(await ensureKnown(aPlayer, actModal.side))) return;
     setModalSaving(true);
     try {
       await apiFetch(`/matches/${id}/events`, {
@@ -333,8 +336,20 @@ export default function AdminMatchDetailPage({ id, initialMatch, initialSquad }:
     }
   }
 
-  const foulCount = (side: Side) => {
-    const per = live.period || "";
+  /** Peringatkan bila nama tak ada di skuad (mencegah pecah ejaan seperti "agra"). */
+  async function ensureKnown(name: string, side: Side): Promise<boolean> {
+    const roster = squad[side] || [];
+    if (roster.length === 0) return true;
+    const found = roster.some((p) => p.name.trim().toLowerCase() === name.trim().toLowerCase());
+    if (found) return true;
+    return confirmDlg({
+      title: "Nama tidak ada di skuad?",
+      detail: `"${name}" tidak cocok dengan skuad ${side === "team1" ? match?.team1?.short_name || match?.team1?.name : match?.team2?.short_name || match?.team2?.name}. Tetap simpan? (Risiko memecah hitungan top skor.)`,
+      confirmLabel: "Ya, Tetap Simpan",
+    });
+  }
+
+  const foulCount = (side: Side) => {    const per = live.period || "";
     const n = (match?.events || []).filter((t) => t.team_side === side && t.type === "foul" && (t.period || "") === per).length;
     return n % 6;
   };

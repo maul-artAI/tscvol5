@@ -1,0 +1,1 @@
+import{j as t}from"./app-D6ZEZyj0.js";import{f as s}from"./vendor-DelTUPG7.js";function a({href:o,label:i}){function e(){typeof window<"u"&&window.history.length>1?window.history.back():s.visit(o)}return t.jsxs("button",{onClick:e,className:"text-xs text-muted hover:text-white transition",children:[t.jsx("i",{className:"fa-solid fa-arrow-left mr-1"})," ",i]})}export{a as B};
